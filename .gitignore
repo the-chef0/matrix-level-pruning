@@ -1,0 +1,4 @@
+__pycache__/
+lm-evaluation-harness/
+*.json
+*.csv
