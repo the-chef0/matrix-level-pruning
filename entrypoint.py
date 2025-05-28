@@ -2,10 +2,10 @@ import argparse
 import os
 import gc
 
-from base_model_utils import BaseModelUtils
 from eval_pruned import evaluate_pruned
 from importances_and_groups import collect_groups
 from prune_model import prune
+from utils.base_model_utils import BaseModelUtils
 
 import torch
 

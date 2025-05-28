@@ -1,5 +1,5 @@
-from base_model_utils import BaseModelUtils
 from pruning_group import PruningGroup
+from utils.base_model_utils import BaseModelUtils
 
 from torch.nn import Identity
 

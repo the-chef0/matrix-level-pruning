@@ -1,8 +1,8 @@
 import csv
 import os
 
-from base_model_utils import BaseModelUtils
 from pruning_group import PruningGroup
+from utils.base_model_utils import BaseModelUtils
 
 from torch.nn import Linear, Module
 
@@ -17,7 +17,6 @@ def collect_groups(model_utils: BaseModelUtils, iteration: int, save_path: str):
     groups_as_str = []
     group_importances = []
     
-    print("pruning candidates")
     for module in model_utils.base_model.modules():
         if is_pruning_candidate(module, model_utils):
             pruning_group = PruningGroup(model_utils, module)
