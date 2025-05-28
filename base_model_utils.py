@@ -1,4 +1,3 @@
-from ckatorch.core import cka_batch
 from torch import Tensor
 from torch.nn import SiLU
 from torch_pruning.dependency import DependencyGraph
@@ -31,23 +30,22 @@ class BaseModelUtils:
         if not self.tokenizer.pad_token:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
+        self.pruning_excluded_keywords = ['self_attn', 'lm_head']
+
+        self.dep_graph = None
+        self.nonlinearities_forward = [SiLU] # TODO: Include all activations from TP
+        self.nonlinearities_backward = [LlamaRMSNorm]
+
+        self.module_to_name = None
+        self.name_to_module = None
+
+    def build_module_name_mappings(self):
         self.module_to_name = {}
         for name, module in self.base_model.named_modules():
             self.module_to_name[module] = name
         self.name_to_module = {v: k for k, v in self.module_to_name.items()}
-        self.module_name_to_similarity = {name: [] for name in self.module_to_name.values()}
-        self.pruning_excluded_keywords = ['self_attn', 'lm_head']
 
-        self.dep_graph = DependencyGraph().build_dependency(
-            model=self.base_model,
-            example_inputs=self.base_model.dummy_inputs['input_ids'].to('cuda'),
-            output_transform=extract_logits,
-            customized_pruners={LlamaRMSNorm: LayernormPruner(), SiLU: ActivationPruner()}
-        )
-        self.nonlinearities_forward = [SiLU] # TODO: Include all activations from TP
-        self.nonlinearities_backward = [LlamaRMSNorm]
-
-    def rebuild_dependency_graph(self):
+    def build_dependency_graph(self):
         self.dep_graph = DependencyGraph().build_dependency(
             model=self.base_model,
             example_inputs=self.base_model.dummy_inputs['input_ids'].to('cuda'),
@@ -62,10 +60,3 @@ class BaseModelUtils:
             return hidden[0]
         else:
             raise TypeError(f"Unknown type: {type(hidden)}")
-
-    def hook_fn(self, module, input, output):
-        input = self.extract_hidden(input)
-        output = self.extract_hidden(output)
-        curr_module_name = self.module_to_name[module]
-        similarity_values = cka_batch(input, output).detach().cpu()
-        self.module_name_to_similarity[curr_module_name].append(similarity_values)

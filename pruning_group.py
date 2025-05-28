@@ -5,8 +5,7 @@ from dependency_direction import DependencyDirection
 
 import numpy as np
 from torch.nn import Module, Linear
-from torch_pruning._helpers import GroupItem
-from torch_pruning.dependency import Dependency, Node
+from torch_pruning.dependency import Node
 from torch_pruning.pruner.importance import GroupMagnitudeImportance
 
 def get_transform_chain_direction(module: Module) -> DependencyDirection:
@@ -87,18 +86,12 @@ def get_operation_group(module: Module, model_utils: BaseModelUtils) -> Set[Node
 class PruningGroup:
     def __init__(self, model_utils: BaseModelUtils, module: Module):
         transform_chain_direction = get_transform_chain_direction(module)
-        self.root_dim_low, self.root_dim_high = self.get_root_dims(module)
+        self.root_dim_low, self.root_dim_high = self.get_module_dims(module)
         self.channel_idxs = [i for i in range(self.root_dim_high)]
 
         if transform_chain_direction == DependencyDirection.not_needed:
-            module_node = model_utils.dep_graph.module2node[module]
-            self_dependency = Dependency(
-                trigger=None,
-                handler=None,
-                source=module_node,
-                target=module_node
-            )
-            self.transform_group_root = [GroupItem(self_dependency, self.channel_idxs)]
+            self.transform_group = model_utils.dep_graph.get_pruning_group(module, DependencyDirection.forward, self.channel_idxs)
+            self.transform_group_root = self.transform_group[:1]
             self.transform_group_chain = None
         else:
             self.transform_group = model_utils.dep_graph.get_pruning_group(module, transform_chain_direction, self.channel_idxs)
@@ -112,7 +105,7 @@ class PruningGroup:
         self.importance = None
         self.transform_chain_importance_ranking = None
 
-    def get_root_dims(self, module: Module):
+    def get_module_dims(self, module: Module):
         root_dim_low = np.min([module.in_features, module.out_features])
         root_dim_high = np.max([module.in_features, module.out_features])
         return root_dim_low, root_dim_high
@@ -152,10 +145,10 @@ class PruningGroup:
     
     def get_transform_chain_modules(self):
         modules = []
-        for item in self.transform_group_chain:
-            curr_dep = item.dep
-            if isinstance(curr_dep.target.module, Linear):
-                modules.append(curr_dep.target.module)
+        if self.transform_group_chain:
+            for item in self.transform_group_chain:
+                if isinstance(item.dep.target.module, Linear):
+                    modules.append(item.dep.target.module)
         return modules
 
     def get_operation_modules(self):
