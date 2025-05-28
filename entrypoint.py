@@ -73,11 +73,8 @@ if args.pruned_model_save_dir:
     print(f"Saved pruned model to {args.pruned_model_save_dir}")
 
 if args.evaluate:
-    assert args.pruned_model_save_dir is not None
     assert args.eval_result_path is not None
-
-    if model_utils is None:
-        assert args.pruned_model_save_dir is not None
+    assert args.pruned_model_save_dir is not None
     
     evaluate_pruned(
         model_utils=pruned_model_utils,
