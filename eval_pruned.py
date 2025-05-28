@@ -1,5 +1,3 @@
-from utils.model_utils import ModelUtils
-
 import json
 import os
 
@@ -7,6 +5,8 @@ import lm_eval
 from lm_eval.models.huggingface import HFLM
 import torch
 from transformers import AutoTokenizer
+
+from utils.model_utils import ModelUtils
 
 def evaluate_pruned(model_utils: ModelUtils, pruned_model_save_dir: str, eval_result_path: str):
     # Initialize the model and tokenizer

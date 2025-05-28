@@ -1,10 +1,10 @@
 from typing import List, Set
 
-from .model_utils import ModelUtils
-from .dependency_direction import DependencyDirection
-
 from torch.nn import Linear, Module
 from torch_pruning.dependency import Node
+
+from .model_utils import ModelUtils
+from .dependency_direction import DependencyDirection
 
 def get_transform_chain_direction(module: Module) -> DependencyDirection:
     assert isinstance(module, Linear), "Only linear layers are supported for now"

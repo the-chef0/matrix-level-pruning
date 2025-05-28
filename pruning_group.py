@@ -1,10 +1,10 @@
-from utils.model_utils import ModelUtils
-from utils.dependency_direction import DependencyDirection
-from utils.pruning_group_utils import get_operation_group, get_transform_chain_direction
-
 import numpy as np
 from torch.nn import Module, Linear
 from torch_pruning.pruner.importance import GroupMagnitudeImportance
+
+from utils.model_utils import ModelUtils
+from utils.dependency_direction import DependencyDirection
+from utils.pruning_group_utils import get_operation_group, get_transform_chain_direction
 
 class PruningGroup:
     def __init__(self, model_utils: ModelUtils, module: Module):

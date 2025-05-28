@@ -1,10 +1,10 @@
 import csv
 import os
 
+from torch.nn import Linear, Module
+
 from pruning_group import PruningGroup
 from utils.model_utils import ModelUtils
-
-from torch.nn import Linear, Module
 
 def is_pruning_candidate(module: Module, model_utils: ModelUtils) -> bool:
     module_name = model_utils.module_to_name[module]

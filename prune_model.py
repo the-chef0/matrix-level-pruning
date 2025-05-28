@@ -1,7 +1,7 @@
+from torch.nn import Identity
+
 from pruning_group import PruningGroup
 from utils.model_utils import ModelUtils
-
-from torch.nn import Identity
 
 def replace_module_by_name(model_utils: ModelUtils, module_name, new_module):
     # Split the module name into parts

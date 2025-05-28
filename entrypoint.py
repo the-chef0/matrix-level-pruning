@@ -1,13 +1,12 @@
 import argparse
 import os
-import gc
 
-from eval_pruned import evaluate_pruned
+import torch
+
+from eval_pruned import evaluate_pruned # TODO: Make relative imports work
 from importances_and_groups import collect_groups
 from prune_model import prune
 from utils.model_utils import ModelUtils
-
-import torch
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Matrix-level pruning pipeline')
