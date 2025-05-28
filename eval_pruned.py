@@ -1,3 +1,5 @@
+from utils.model_utils import ModelUtils
+
 import json
 import os
 
@@ -6,10 +8,14 @@ from lm_eval.models.huggingface import HFLM
 import torch
 from transformers import AutoTokenizer
 
-def evaluate_pruned(pruned_model_save_dir: str, eval_result_path: str):
+def evaluate_pruned(model_utils: ModelUtils, pruned_model_save_dir: str, eval_result_path: str):
     # Initialize the model and tokenizer
-    model = torch.load(os.path.join(pruned_model_save_dir, "model.pth"), weights_only=False).cuda()
-    tokenizer = AutoTokenizer.from_pretrained(pruned_model_save_dir)
+    if model_utils:
+        model = model_utils.model
+        tokenizer = model_utils.tokenizer
+    else:
+        model = torch.load(os.path.join(pruned_model_save_dir, "model.pth"), weights_only=False).cuda()
+        tokenizer = AutoTokenizer.from_pretrained(pruned_model_save_dir)
 
     name = os.path.basename(pruned_model_save_dir)
 

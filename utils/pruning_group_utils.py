@@ -1,6 +1,6 @@
 from typing import List, Set
 
-from .base_model_utils import BaseModelUtils
+from .model_utils import ModelUtils
 from .dependency_direction import DependencyDirection
 
 from torch.nn import Linear, Module
@@ -53,7 +53,7 @@ def is_operation_prunable(nonlinearity_node: Node, search_direction: DependencyD
     
     return num_dependent_matrices(nonlinearity_node, search_direction) <= 1
 
-def get_operation_group(module: Module, model_utils: BaseModelUtils) -> Set[Node]:
+def get_operation_group(module: Module, model_utils: ModelUtils) -> Set[Node]:
     module_node = model_utils.dep_graph.module2node[module]
     depth_pruning_group = set()
     

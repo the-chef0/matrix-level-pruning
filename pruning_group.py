@@ -1,4 +1,4 @@
-from utils.base_model_utils import BaseModelUtils
+from utils.model_utils import ModelUtils
 from utils.dependency_direction import DependencyDirection
 from utils.pruning_group_utils import get_operation_group, get_transform_chain_direction
 
@@ -7,7 +7,7 @@ from torch.nn import Module, Linear
 from torch_pruning.pruner.importance import GroupMagnitudeImportance
 
 class PruningGroup:
-    def __init__(self, model_utils: BaseModelUtils, module: Module):
+    def __init__(self, model_utils: ModelUtils, module: Module):
         transform_chain_direction = get_transform_chain_direction(module)
         self.root_dim_low, self.root_dim_high = self.get_module_dims(module)
         self.channel_idxs = [i for i in range(self.root_dim_high)]

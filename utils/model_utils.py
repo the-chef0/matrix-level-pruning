@@ -21,10 +21,10 @@ class ActivationPruner(BasePruningFunc):
     def get_in_channels(self, layer):
         return None
 
-class BaseModelUtils:
+class ModelUtils:
     def __init__(self, base_model_id: str):
         self.base_model_id = base_model_id
-        self.base_model = AutoModelForCausalLM.from_pretrained(base_model_id).to('cuda')
+        self.model = AutoModelForCausalLM.from_pretrained(base_model_id).to('cuda')
         self.tokenizer = AutoTokenizer.from_pretrained(base_model_id)
 
         if not self.tokenizer.pad_token:
@@ -41,14 +41,14 @@ class BaseModelUtils:
 
     def build_module_name_mappings(self):
         self.module_to_name = {}
-        for name, module in self.base_model.named_modules():
+        for name, module in self.model.named_modules():
             self.module_to_name[module] = name
         self.name_to_module = {v: k for k, v in self.module_to_name.items()}
 
     def build_dependency_graph(self):
         self.dep_graph = DependencyGraph().build_dependency(
-            model=self.base_model,
-            example_inputs=self.base_model.dummy_inputs['input_ids'].to('cuda'),
+            model=self.model,
+            example_inputs=self.model.dummy_inputs['input_ids'].to('cuda'),
             output_transform=extract_logits,
             customized_pruners={LlamaRMSNorm: LayernormPruner(), SiLU: ActivationPruner()}
         )
