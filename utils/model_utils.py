@@ -30,8 +30,6 @@ class ModelUtils:
         if not self.tokenizer.pad_token:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        self.pruning_excluded_keywords = ['self_attn', 'lm_head']
-
         self.dep_graph = None
         self.nonlinearities_forward = [SiLU] # TODO: Include all activations from TP
         self.nonlinearities_backward = [LlamaRMSNorm]
