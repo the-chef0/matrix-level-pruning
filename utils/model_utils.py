@@ -31,8 +31,6 @@ class ModelUtils:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
         self.dep_graph = None
-        self.nonlinearities_forward = [SiLU] # TODO: Include all activations from TP
-        self.nonlinearities_backward = [LlamaRMSNorm]
 
         self.module_to_name = None
         self.name_to_module = None

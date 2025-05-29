@@ -60,6 +60,7 @@ for i in range(args.pruning_iterations):
         iteration=i,
         save_path=args.importances_save_path
     )
+
     _, group_to_prune = importances_and_groups.pop(0)
     prune(model_utils, group_to_prune)
 

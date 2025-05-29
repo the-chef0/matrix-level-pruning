@@ -2,26 +2,29 @@ import numpy as np
 from torch.nn import Module, Linear
 from torch_pruning.pruner.importance import GroupMagnitudeImportance
 
+from utils.dependency_utils import RootDependencyUtils, DependencyDirection
 from utils.model_utils import ModelUtils
-from utils.dependency_direction import DependencyDirection
-from utils.pruning_group_utils import get_operation_group, get_transform_chain_direction
+from utils.operation_group_utils import get_operation_group
 
 class PruningGroup:
-    def __init__(self, model_utils: ModelUtils, module: Module):
-        transform_chain_direction = get_transform_chain_direction(module)
-        self.root_dim_low, self.root_dim_high = self.get_module_dims(module)
+    def __init__(self, model_utils: ModelUtils, root_module: Module):
+        root_dependency_utils = RootDependencyUtils(model_utils, root_module)
+        self.root_dim_low, self.root_dim_high = self.get_module_dims(root_module)
         self.channel_idxs = [i for i in range(self.root_dim_high)]
 
-        if transform_chain_direction == DependencyDirection.not_needed:
-            self.transform_group = model_utils.dep_graph.get_pruning_group(module, DependencyDirection.forward, self.channel_idxs)
-            self.transform_group_root = self.transform_group[:1]
-            self.transform_group_chain = None
-        else:
-            self.transform_group = model_utils.dep_graph.get_pruning_group(module, transform_chain_direction, self.channel_idxs)
-            self.transform_group_root = self.transform_group[:1]
-            self.transform_group_chain = self.transform_group[1:]
+        self.transform_group = model_utils.dep_graph.get_pruning_group(
+            root_module,
+            root_dependency_utils.fn,
+            self.channel_idxs
+        )
+        self.transform_group_root = self.transform_group[:1]
 
-        self.operation_group = list(get_operation_group(module, model_utils))
+        if root_dependency_utils.direction != DependencyDirection.NOT_APPLICABLE:
+            self.transform_group_chain = self.transform_group[1:]
+        else:
+            self.transform_group_chain = None
+            
+        self.operation_group = list(get_operation_group(model_utils, root_module))
         self.importance_fn = GroupMagnitudeImportance(normalizer=None)
         self.model_utils = model_utils
         

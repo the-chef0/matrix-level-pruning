@@ -1,4 +1,5 @@
-from torch.nn import modules
+from torch.nn import modules, SiLU
+from transformers.models.llama.modeling_llama import LlamaRMSNorm
 
 BASE_TRANSFORM_TYPES = (
     modules.Linear,
@@ -8,4 +9,9 @@ BASE_TRANSFORM_TYPES = (
 FORBIDDEN_TRANSFORM_KEYWORDS = (
     'self_attn',
     'lm_head'
+)
+
+BASE_OPERATION_TYPES = (
+    SiLU,
+    LlamaRMSNorm
 )

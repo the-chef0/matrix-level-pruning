@@ -30,7 +30,7 @@ def collect_groups(model_utils: ModelUtils, iteration: int, save_path: str):
             groups.append(pruning_group)
             groups_as_str.append(str(pruning_group))
             group_importances.append(importance)
-
+    
     importances_and_group_strs = sorted(zip(group_importances, groups_as_str), key=lambda x: x[0])
     importances_and_groups = sorted(zip(group_importances, groups), key=lambda x: x[0])
 
