@@ -8,7 +8,7 @@ from transformers.models.llama.modeling_llama import LlamaRMSNorm
 def extract_logits(output: Tensor) -> Tensor:
     return output.logits
 
-class ActivationPruner(BasePruningFunc):
+class OperationPruner(BasePruningFunc):
 
     def prune_out_channels(self, layer, idxs):
         return layer

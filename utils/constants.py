@@ -1,4 +1,5 @@
-from torch.nn import modules, SiLU
+from torch import nn
+from torch.nn import modules
 from transformers.models.llama.modeling_llama import LlamaRMSNorm
 
 BASE_TRANSFORM_TYPES = (
@@ -6,12 +7,17 @@ BASE_TRANSFORM_TYPES = (
     modules.conv._ConvNd
 )
 
-FORBIDDEN_TRANSFORM_KEYWORDS = (
+CRITICAL_LAYER_KEYWORDS = (
     'self_attn',
-    'lm_head'
+    'lm_head',
+    'fc'
 )
 
 BASE_OPERATION_TYPES = (
-    SiLU,
+    nn.SiLU,
+    nn.BatchNorm2d,
+    nn.ReLU,
+    nn.MaxPool2d,
+    nn.AdaptiveAvgPool2d,
     LlamaRMSNorm
 )
