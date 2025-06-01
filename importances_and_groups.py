@@ -5,18 +5,14 @@ from torch.nn import Linear, Module
 
 from pruning_group import PruningGroup
 import utils.constants as c
+from utils.functional import is_transform_type
 from utils.model_utils import ModelUtils
 
 def is_group_root(module: Module, model_utils: ModelUtils) -> bool:
-    is_transform = False
-    for transform_type in c.BASE_TRANSFORM_TYPES:
-        if issubclass(type(module), transform_type):
-            is_transform = True
-            break
-
+    is_transform = is_transform_type(type(module))
     module_name = model_utils.module_to_name[module]
-    is_not_forbidden = not any(kw in module_name for kw in c.FORBIDDEN_TRANSFORM_KEYWORDS)
-    return is_transform and is_not_forbidden
+    is_not_critical = not any(kw in module_name for kw in c.CRITICAL_LAYER_KEYWORDS)
+    return is_transform and is_not_critical
 
 def collect_groups(model_utils: ModelUtils, iteration: int, save_path: str):
     groups = []

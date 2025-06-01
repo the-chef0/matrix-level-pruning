@@ -73,8 +73,9 @@ class PruningGroup:
         modules = []
         if self.transform_group_chain:
             for item in self.transform_group_chain:
-                if isinstance(item.dep.target.module, Linear):
-                    modules.append(item.dep.target.module)
+                item_module = item.dep.target.module
+                if is_transform_type(type(item_module)):
+                    modules.append(item_module)
         return modules
 
     def get_operation_modules(self):

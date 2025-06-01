@@ -5,16 +5,8 @@ from torch_pruning.dependency import Node
 
 from . import constants as c
 from .dependency_utils import DependencyDirection
+from .functional import is_transform_type
 from .model_utils import ModelUtils
-
-def is_transform_type(node_module_type: Type):
-    found = False
-    for transform_type in c.BASE_TRANSFORM_TYPES:
-        if issubclass(node_module_type, transform_type):
-            found = True
-            break
-
-    return found
 
 def get_adjacent_nodes(node: Node, search_direction: DependencyDirection) -> List[Module]:
     if search_direction == DependencyDirection.FORWARD:
@@ -26,6 +18,7 @@ def get_adjacent_nodes(node: Node, search_direction: DependencyDirection) -> Lis
     
 def find_adjacent_operation_nodes(source_node: Node, search_direction: DependencyDirection, target_types: List, operation_nodes: Set[Node]) -> Set[Node]:
     branches = get_adjacent_nodes(source_node, search_direction)
+    
     for branch_node in branches:
         branch_node_module_type = type(branch_node.module)
         if branch_node_module_type in target_types:
