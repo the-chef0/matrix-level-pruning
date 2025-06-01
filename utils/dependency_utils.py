@@ -16,13 +16,13 @@ class DependencyDirection(Enum):
 class RootDependencyUtils:
     def __init__(self, model_utils: ModelUtils, module: Module):
         tp_module_pruner = model_utils.dep_graph.get_pruner_of_module(module)
-        in_channels = tp_module_pruner.get_in_channels(module)
-        out_channels = tp_module_pruner.get_out_channels(module)
+        self.in_channels = tp_module_pruner.get_in_channels(module)
+        self.out_channels = tp_module_pruner.get_out_channels(module)
 
-        if in_channels > out_channels:
+        if self.in_channels > self.out_channels:
             self.direction = DependencyDirection.BACKWARD
             self.fn = tp_module_pruner.prune_in_channels
-        elif in_channels < out_channels:
+        elif self.in_channels < self.out_channels:
             self.direction = DependencyDirection.FORWARD
             self.fn = tp_module_pruner.prune_out_channels
         else:

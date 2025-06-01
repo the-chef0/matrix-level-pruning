@@ -8,18 +8,18 @@ from utils.operation_group_utils import get_operation_group
 
 class PruningGroup:
     def __init__(self, model_utils: ModelUtils, root_module: Module):
-        root_dependency_utils = RootDependencyUtils(model_utils, root_module)
+        self.root_dependency_utils = RootDependencyUtils(model_utils, root_module)
         self.root_dim_low, self.root_dim_high = self.get_module_dims(root_module)
         self.channel_idxs = [i for i in range(self.root_dim_high)]
 
         self.transform_group = model_utils.dep_graph.get_pruning_group(
             root_module,
-            root_dependency_utils.fn,
+            self.root_dependency_utils.fn,
             self.channel_idxs
         )
         self.transform_group_root = self.transform_group[:1]
 
-        if root_dependency_utils.direction != DependencyDirection.NOT_APPLICABLE:
+        if self.root_dependency_utils.direction != DependencyDirection.NOT_APPLICABLE:
             self.transform_group_chain = self.transform_group[1:]
         else:
             self.transform_group_chain = None
@@ -32,8 +32,8 @@ class PruningGroup:
         self.transform_chain_importance_ranking = None
 
     def get_module_dims(self, module: Module):
-        root_dim_low = np.min([module.in_features, module.out_features])
-        root_dim_high = np.max([module.in_features, module.out_features])
+        root_dim_low = np.min([self.root_dependency_utils.in_channels, self.root_dependency_utils.out_channels])
+        root_dim_high = np.max([self.root_dependency_utils.in_channels, self.root_dependency_utils.out_channels])
         return root_dim_low, root_dim_high
 
     def get_transform_chain_importance_ranking(self):
