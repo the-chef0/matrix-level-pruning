@@ -1,8 +1,9 @@
 import numpy as np
-from torch.nn import Module, Linear
+from torch.nn import Module
 from torch_pruning.pruner.importance import GroupMagnitudeImportance
 
 from utils.dependency_utils import RootDependencyUtils, DependencyDirection
+from utils.functional import is_transform_type
 from utils.model_utils import ModelUtils
 from utils.operation_group_utils import get_operation_group
 
