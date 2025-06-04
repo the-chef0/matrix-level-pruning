@@ -24,6 +24,9 @@ def replace_module_by_name(model_utils: ModelUtils, module_name, new_module):
     # Replace the module
     setattr(parent, parts[-1], new_module)
 
+def get_operation_modules(operation_group: list):
+    return [node.module for node in operation_group]
+
 class PruningGroup(ABC):
 
     @abstractmethod
@@ -46,7 +49,7 @@ class AttentionPruningGroup(ABC):
         setattr(singleton_group, '_DG', model_utils.dep_graph)
         return singleton_group
 
-    def __init__(self, model_utils: ModelUtils, attention_module: Module, qo_idxs: list, kv_idxs: list):
+    def __init__(self, model_utils: ModelUtils, attention_module: Module, qo_idxs: list, kv_idxs: list, dims_per_head: int):
         self.model_utils = model_utils
         self.module = attention_module
         self.importance_fn = GroupMagnitudeImportance(normalizer=None, group_reduction=None)
@@ -59,6 +62,11 @@ class AttentionPruningGroup(ABC):
         self.v_singleton = self.get_singleton_group(model_utils, self.module.v_proj, self.kv_idxs, tp.prune_linear_out_channels)
         self.o_singleton = self.get_singleton_group(model_utils, self.module.o_proj, self.qo_idxs_flat, tp.prune_linear_in_channels)
 
+        self.operation_group = None
+        # When there is only one head left, we can start pruning operations
+        if self.module.k_proj.out_features == dims_per_head:
+            self.operation_group = list(get_operation_group(model_utils, self.module.o_proj))
+
     def get_importance(self):
         q_heads_importance = np.sum(self.importance_fn(self.q_singleton).cpu().numpy())
         k_heads_importance = np.sum(self.importance_fn(self.k_singleton).cpu().numpy())
@@ -70,10 +78,22 @@ class AttentionPruningGroup(ABC):
             + o_heads_importance
 
     def prune(self):
-        self.q_singleton.prune()
-        self.k_singleton.prune()
-        self.v_singleton.prune()
-        self.o_singleton.prune()
+        # Only pruning attention heads, not operations
+        if self.operation_group is None:
+            self.q_singleton.prune()
+            self.k_singleton.prune()
+            self.v_singleton.prune()
+            self.o_singleton.prune()
+        # Pruning the last remaining head means we can prune the entire attention module,
+        # along with any operations that might belong to it
+        else:
+            operation_modules = get_operation_modules(self.operation_group)
+            for op_module in operation_modules:
+                op_module_name = self.model_utils.module_to_name[op_module]
+                replace_module_by_name(self.model_utils, op_module_name, Identity())
+            
+            attention_module_name = self.model_utils.module_to_name[self.module]
+            replace_module_by_name(self.model_utils, attention_module_name, Identity())
 
     def __str__(self):
         module_str = f"{self.model_utils.module_to_name[self.module]}\n"
@@ -106,7 +126,13 @@ class AttentionPruningGroupGenerator:
                 q_head_idxs = list(range(q_head_start_idx, q_head_end_idx))
                 qo_idxs.append(q_head_idxs)
 
-            yield AttentionPruningGroup(model_utils, self.module, qo_idxs, kv_idxs)
+            yield AttentionPruningGroup(
+                model_utils=model_utils,
+                attention_module=self.module,
+                qo_idxs=qo_idxs,
+                kv_idxs=kv_idxs,
+                dims_per_head=self.dims_per_head
+            )
 
 class TransformPruningGroup(ABC):
     def __init__(self, model_utils: ModelUtils, root_module: Module):
@@ -181,9 +207,6 @@ class TransformPruningGroup(ABC):
                     modules.append(item_module)
         return modules
 
-    def get_operation_modules(self):
-        return [node.module for node in self.operation_group]
-
     def prune(self):
         # Prune transform group dimension dependency chain, only if the root is a
         # rectangular matrix and has a dimension dependency chain
@@ -199,7 +222,7 @@ class TransformPruningGroup(ABC):
         replace_module_by_name(self.model_utils, root_module_name, Identity())
 
         # Prune operations
-        operation_modules = self.get_operation_modules()
+        operation_modules = get_operation_modules(self.operation_group)
         for op_module in operation_modules:
             op_module_name = self.model_utils.module_to_name[op_module]
             replace_module_by_name(self.model_utils, op_module_name, Identity())
