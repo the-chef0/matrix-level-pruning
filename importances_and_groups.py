@@ -3,7 +3,7 @@ import os
 
 from torch.nn import Module
 
-from pruning_group import AttentionPruningGroupGenerator, PruningGroup
+from pruning_group import AttentionPruningGroupGenerator, TransformPruningGroup
 import utils.constants as c
 from utils.functional import is_attention_type, is_transform_type
 from utils.model_utils import ModelUtils
@@ -24,7 +24,7 @@ def collect_groups(model_utils: ModelUtils, iteration: int, save_path: str):
     
     for module in model_utils.model.modules():
         if is_group_root(model_utils, module):
-            pruning_group = PruningGroup(model_utils, module)
+            pruning_group = TransformPruningGroup(model_utils, module)
             importance = pruning_group.get_importance()
             groups.append(pruning_group)
             groups_as_str.append(str(pruning_group))

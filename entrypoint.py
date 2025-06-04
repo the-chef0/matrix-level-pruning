@@ -5,7 +5,6 @@ import torch
 
 from eval_pruned import evaluate_pruned # TODO: Make relative imports work
 from importances_and_groups import collect_groups
-from prune_model import prune
 from utils.model_utils import ModelUtils
 
 def parse_args():
@@ -62,7 +61,7 @@ for i in range(args.pruning_iterations):
     )
 
     _, group_to_prune = importances_and_groups.pop(0)
-    prune(model_utils, group_to_prune)
+    group_to_prune.prune()
 
 pruned_model_utils = None
 if model_utils:

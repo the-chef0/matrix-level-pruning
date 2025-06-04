@@ -1,5 +1,8 @@
+from abc import ABC, abstractmethod
+from typing import Callable
+
 import numpy as np
-from torch.nn import Linear, Module
+from torch.nn import Identity, Linear, Module
 import torch_pruning as tp
 from torch_pruning.dependency import Group
 from torch_pruning.pruner.importance import GroupMagnitudeImportance
@@ -9,49 +12,85 @@ from utils.functional import is_transform_type
 from utils.model_utils import ModelUtils
 from utils.operation_group_utils import get_operation_group
 
-class AttentionPruningGroup:
-    def get_solo_group(self, model_utils: ModelUtils, proj: Linear, idxs: list, pruning_fn):
+def replace_module_by_name(model_utils: ModelUtils, module_name, new_module):
+    # Split the module name into parts
+    parts = module_name.split('.')
+    
+    # Get the parent module (everything except the last part)
+    parent = model_utils.model
+    for part in parts[:-1]:
+        parent = getattr(parent, part)
+    
+    # Replace the module
+    setattr(parent, parts[-1], new_module)
+
+class PruningGroup(ABC):
+
+    @abstractmethod
+    def get_importance(self):
+        pass
+
+    @abstractmethod
+    def prune(self):
+        pass
+
+    @abstractmethod
+    def __str__(self):
+        pass
+
+class AttentionPruningGroup(ABC):
+    def get_singleton_group(self, model_utils: ModelUtils, proj: Linear, idxs: list, pruning_fn):
         full_group = model_utils.dep_graph.get_pruning_group(proj, pruning_fn, idxs)
-        solo_group = Group()
-        solo_group._group = full_group[:1]
-        solo_group._DG = model_utils.dep_graph
-        return solo_group
+        singleton_group = Group()
+        setattr(singleton_group, '_group', full_group[:1])
+        setattr(singleton_group, '_DG', model_utils.dep_graph)
+        return singleton_group
 
     def __init__(self, model_utils: ModelUtils, attention_module: Module, qo_idxs: list, kv_idxs: list):
+        self.model_utils = model_utils
+        self.module = attention_module
         self.importance_fn = GroupMagnitudeImportance(normalizer=None, group_reduction=None)
-        qo_idxs_flat = np.array(qo_idxs).flatten()
-        self.q_group_solo = self.get_solo_group(model_utils, attention_module.q_proj, qo_idxs_flat, tp.prune_linear_out_channels)
-        self.k_group_solo = self.get_solo_group(model_utils, attention_module.k_proj, kv_idxs, tp.prune_linear_out_channels)
-        self.v_group_solo = self.get_solo_group(model_utils, attention_module.v_proj, kv_idxs, tp.prune_linear_out_channels)
-        self.o_group_solo = self.get_solo_group(model_utils, attention_module.o_proj, qo_idxs_flat, tp.prune_linear_in_channels)
+        self.qo_idxs_flat = np.array(qo_idxs).flatten()
         self.qo_idxs = qo_idxs
         self.kv_idxs = kv_idxs
 
+        self.q_singleton = self.get_singleton_group(model_utils, self.module.q_proj, self.qo_idxs_flat, tp.prune_linear_out_channels)
+        self.k_singleton = self.get_singleton_group(model_utils, self.module.k_proj, self.kv_idxs, tp.prune_linear_out_channels)
+        self.v_singleton = self.get_singleton_group(model_utils, self.module.v_proj, self.kv_idxs, tp.prune_linear_out_channels)
+        self.o_singleton = self.get_singleton_group(model_utils, self.module.o_proj, self.qo_idxs_flat, tp.prune_linear_in_channels)
+
     def get_importance(self):
-        q_heads_importance = np.sum(self.importance_fn(self.q_group_solo).cpu().numpy())
-        k_heads_importance = np.sum(self.importance_fn(self.k_group_solo).cpu().numpy())
-        v_heads_importance = np.sum(self.importance_fn(self.v_group_solo).cpu().numpy())
-        o_heads_importance = np.sum(self.importance_fn(self.o_group_solo).cpu().numpy())
+        q_heads_importance = np.sum(self.importance_fn(self.q_singleton).cpu().numpy())
+        k_heads_importance = np.sum(self.importance_fn(self.k_singleton).cpu().numpy())
+        v_heads_importance = np.sum(self.importance_fn(self.v_singleton).cpu().numpy())
+        o_heads_importance = np.sum(self.importance_fn(self.o_singleton).cpu().numpy())
         return q_heads_importance \
             + k_heads_importance \
             + v_heads_importance \
             + o_heads_importance
 
+    def prune(self):
+        self.q_singleton.prune()
+        self.k_singleton.prune()
+        self.v_singleton.prune()
+        self.o_singleton.prune()
+
     def __str__(self):
+        module_str = f"{self.model_utils.module_to_name[self.module]}\n"
         kv_str = f"K/V head ({self.kv_idxs[0]}, {self.kv_idxs[-1]})\n"
         qo_str = "Q/O heads:\n"
         for qo_head_idxs in self.qo_idxs:
             start_idx, end_idx = qo_head_idxs[0], qo_head_idxs[-1]
             qo_str += f"({start_idx}, {end_idx})\n"
-        return kv_str + qo_str
+        return module_str + kv_str + qo_str
 
 class AttentionPruningGroupGenerator:
     def __init__(self, attention_module: Module):
-        self.attention_module = attention_module
-        self.dims_per_head = attention_module.config.hidden_size // attention_module.config.num_attention_heads
-        assert attention_module.k_proj.out_features == attention_module.v_proj.out_features
-        self.num_kv_heads = attention_module.k_proj.out_features // self.dims_per_head
-        num_q_heads = attention_module.q_proj.out_features // self.dims_per_head
+        self.module = attention_module
+        self.dims_per_head = self.module.config.hidden_size // self.module.config.num_attention_heads
+        assert self.module.k_proj.out_features == self.module.v_proj.out_features
+        self.num_kv_heads = self.module.k_proj.out_features // self.dims_per_head
+        num_q_heads = self.module.q_proj.out_features // self.dims_per_head
         self.num_kv_groups = num_q_heads // self.num_kv_heads
 
     def get_groups(self, model_utils: ModelUtils):
@@ -62,15 +101,16 @@ class AttentionPruningGroupGenerator:
 
             qo_idxs = []
             for q_head_offset in range(self.num_kv_groups):
-                q_head_start_idx = kv_head_start_idx + (q_head_offset * self.attention_module.k_proj.out_features)
-                q_head_end_idx = kv_head_end_idx + (q_head_offset * self.attention_module.k_proj.out_features)
+                q_head_start_idx = kv_head_start_idx + (q_head_offset * self.module.k_proj.out_features)
+                q_head_end_idx = kv_head_end_idx + (q_head_offset * self.module.k_proj.out_features)
                 q_head_idxs = list(range(q_head_start_idx, q_head_end_idx))
                 qo_idxs.append(q_head_idxs)
 
-            yield AttentionPruningGroup(model_utils, self.attention_module, qo_idxs, kv_idxs)
+            yield AttentionPruningGroup(model_utils, self.module, qo_idxs, kv_idxs)
 
-class PruningGroup:
+class TransformPruningGroup(ABC):
     def __init__(self, model_utils: ModelUtils, root_module: Module):
+        self.model_utils = model_utils
         self.root_dependency_utils = RootDependencyUtils(model_utils, root_module)
         self.root_dim_low, self.root_dim_high = self.get_module_dims(root_module)
         self.channel_idxs = [i for i in range(self.root_dim_high)]
@@ -143,6 +183,26 @@ class PruningGroup:
 
     def get_operation_modules(self):
         return [node.module for node in self.operation_group]
+
+    def prune(self):
+        # Prune transform group dimension dependency chain, only if the root is a
+        # rectangular matrix and has a dimension dependency chain
+        if self.transform_group_chain:
+            importance_ranking = self.get_transform_chain_importance_ranking()
+            num_channels_to_prune = self.root_dim_high - self.root_dim_low
+            idxs_to_prune = [idx for (importance, idx) in importance_ranking[:num_channels_to_prune]]
+            self.transform_group.prune(idxs_to_prune)
+
+        # Prune transform group root
+        root_module = self.get_transform_root_module()
+        root_module_name = self.model_utils.module_to_name[root_module]
+        replace_module_by_name(self.model_utils, root_module_name, Identity())
+
+        # Prune operations
+        operation_modules = self.get_operation_modules()
+        for op_module in operation_modules:
+            op_module_name = self.model_utils.module_to_name[op_module]
+            replace_module_by_name(self.model_utils, op_module_name, Identity())
 
     def __str__(self):
         root_module = self.get_transform_root_module()
