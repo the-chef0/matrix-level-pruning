@@ -1,18 +1,21 @@
 import csv
 import os
 
-from torch.nn import Linear, Module
+from torch.nn import Module
 
-from pruning_group import PruningGroup
+from pruning_group import AttentionPruningGroupGenerator, PruningGroup
 import utils.constants as c
-from utils.functional import is_transform_type
+from utils.functional import is_attention_type, is_transform_type
 from utils.model_utils import ModelUtils
 
-def is_group_root(module: Module, model_utils: ModelUtils) -> bool:
+def is_group_root(model_utils: ModelUtils, module: Module) -> bool:
     is_transform = is_transform_type(type(module))
     module_name = model_utils.module_to_name[module]
-    is_not_critical = not any(kw in module_name for kw in c.CRITICAL_LAYER_KEYWORDS)
-    return is_transform and is_not_critical
+    is_not_excluded = not any(kw in module_name for kw in c.TRANSFORM_EXCLUSION_KEYWORDS)
+    return is_transform and is_not_excluded
+
+def is_attention_root(model_utils: ModelUtils, module: Module) -> bool:
+    return is_attention_type(type(module))
 
 def collect_groups(model_utils: ModelUtils, iteration: int, save_path: str):
     groups = []
@@ -20,12 +23,19 @@ def collect_groups(model_utils: ModelUtils, iteration: int, save_path: str):
     group_importances = []
     
     for module in model_utils.model.modules():
-        if is_group_root(module, model_utils):
+        if is_group_root(model_utils, module):
             pruning_group = PruningGroup(model_utils, module)
             importance = pruning_group.get_importance()
             groups.append(pruning_group)
             groups_as_str.append(str(pruning_group))
             group_importances.append(importance)
+        if is_attention_root(model_utils, module):
+            attention_group_generator = AttentionPruningGroupGenerator(module)
+            for pruning_group in attention_group_generator.get_groups(model_utils):
+                importance = pruning_group.get_importance()
+                groups.append(pruning_group)
+                groups_as_str.append(str(pruning_group))
+                group_importances.append(importance)
     
     importances_and_group_strs = sorted(zip(group_importances, groups_as_str), key=lambda x: x[0])
     importances_and_groups = sorted(zip(group_importances, groups), key=lambda x: x[0])

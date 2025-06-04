@@ -1,16 +1,23 @@
 from torch import nn
 from torch.nn import modules
-from transformers.models.llama.modeling_llama import LlamaRMSNorm
+from transformers.models.llama.modeling_llama import LlamaAttention, LlamaRMSNorm
 
 BASE_TRANSFORM_TYPES = (
     modules.Linear,
     modules.conv._ConvNd
 )
 
-CRITICAL_LAYER_KEYWORDS = (
-    'self_attn',
+TRANSFORM_EXCLUSION_KEYWORDS = (
     'lm_head',
-    'fc'
+    'fc',
+    'q_proj',
+    'k_proj',
+    'v_proj',
+    'o_proj'
+)
+
+BASE_ATTENTION_TYPES = (
+    LlamaAttention,
 )
 
 BASE_OPERATION_TYPES = (

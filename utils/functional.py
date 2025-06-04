@@ -10,3 +10,11 @@ def is_transform_type(module_type: Type):
             is_transform = True
             break
     return is_transform
+
+def is_attention_type(module_type: Type):
+    is_attention = False
+    for transform_type in c.BASE_ATTENTION_TYPES:
+        if issubclass(module_type, transform_type):
+            is_attention = True
+            break
+    return is_attention

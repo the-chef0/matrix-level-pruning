@@ -1,11 +1,73 @@
 import numpy as np
-from torch.nn import Module
+from torch.nn import Linear, Module
+import torch_pruning as tp
+from torch_pruning.dependency import Group
 from torch_pruning.pruner.importance import GroupMagnitudeImportance
 
 from utils.dependency_utils import RootDependencyUtils, DependencyDirection
 from utils.functional import is_transform_type
 from utils.model_utils import ModelUtils
 from utils.operation_group_utils import get_operation_group
+
+class AttentionPruningGroup:
+    def get_solo_group(self, model_utils: ModelUtils, proj: Linear, idxs: list, pruning_fn):
+        full_group = model_utils.dep_graph.get_pruning_group(proj, pruning_fn, idxs)
+        solo_group = Group()
+        solo_group._group = full_group[:1]
+        solo_group._DG = model_utils.dep_graph
+        return solo_group
+
+    def __init__(self, model_utils: ModelUtils, attention_module: Module, qo_idxs: list, kv_idxs: list):
+        self.importance_fn = GroupMagnitudeImportance(normalizer=None, group_reduction=None)
+        qo_idxs_flat = np.array(qo_idxs).flatten()
+        self.q_group_solo = self.get_solo_group(model_utils, attention_module.q_proj, qo_idxs_flat, tp.prune_linear_out_channels)
+        self.k_group_solo = self.get_solo_group(model_utils, attention_module.k_proj, kv_idxs, tp.prune_linear_out_channels)
+        self.v_group_solo = self.get_solo_group(model_utils, attention_module.v_proj, kv_idxs, tp.prune_linear_out_channels)
+        self.o_group_solo = self.get_solo_group(model_utils, attention_module.o_proj, qo_idxs_flat, tp.prune_linear_in_channels)
+        self.qo_idxs = qo_idxs
+        self.kv_idxs = kv_idxs
+
+    def get_importance(self):
+        q_heads_importance = np.sum(self.importance_fn(self.q_group_solo).cpu().numpy())
+        k_heads_importance = np.sum(self.importance_fn(self.k_group_solo).cpu().numpy())
+        v_heads_importance = np.sum(self.importance_fn(self.v_group_solo).cpu().numpy())
+        o_heads_importance = np.sum(self.importance_fn(self.o_group_solo).cpu().numpy())
+        return q_heads_importance \
+            + k_heads_importance \
+            + v_heads_importance \
+            + o_heads_importance
+
+    def __str__(self):
+        kv_str = f"K/V head ({self.kv_idxs[0]}, {self.kv_idxs[-1]})\n"
+        qo_str = "Q/O heads:\n"
+        for qo_head_idxs in self.qo_idxs:
+            start_idx, end_idx = qo_head_idxs[0], qo_head_idxs[-1]
+            qo_str += f"({start_idx}, {end_idx})\n"
+        return kv_str + qo_str
+
+class AttentionPruningGroupGenerator:
+    def __init__(self, attention_module: Module):
+        self.attention_module = attention_module
+        self.dims_per_head = attention_module.config.hidden_size // attention_module.config.num_attention_heads
+        assert attention_module.k_proj.out_features == attention_module.v_proj.out_features
+        self.num_kv_heads = attention_module.k_proj.out_features // self.dims_per_head
+        num_q_heads = attention_module.q_proj.out_features // self.dims_per_head
+        self.num_kv_groups = num_q_heads // self.num_kv_heads
+
+    def get_groups(self, model_utils: ModelUtils):
+        for kv_head_offset in range(self.num_kv_heads):
+            kv_head_start_idx = kv_head_offset * self.dims_per_head
+            kv_head_end_idx = (kv_head_offset + 1) * self.dims_per_head
+            kv_idxs = list(range(kv_head_start_idx, kv_head_end_idx))
+
+            qo_idxs = []
+            for q_head_offset in range(self.num_kv_groups):
+                q_head_start_idx = kv_head_start_idx + (q_head_offset * self.attention_module.k_proj.out_features)
+                q_head_end_idx = kv_head_end_idx + (q_head_offset * self.attention_module.k_proj.out_features)
+                q_head_idxs = list(range(q_head_start_idx, q_head_end_idx))
+                qo_idxs.append(q_head_idxs)
+
+            yield AttentionPruningGroup(model_utils, self.attention_module, qo_idxs, kv_idxs)
 
 class PruningGroup:
     def __init__(self, model_utils: ModelUtils, root_module: Module):
