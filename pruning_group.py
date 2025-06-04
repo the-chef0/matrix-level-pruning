@@ -102,7 +102,13 @@ class AttentionPruningGroup(ABC):
         for qo_head_idxs in self.qo_idxs:
             start_idx, end_idx = qo_head_idxs[0], qo_head_idxs[-1]
             qo_str += f"({start_idx}, {end_idx})\n"
-        return module_str + kv_str + qo_str
+
+        operation_str = "Operations:\n"
+        if self.operation_group is not None:
+            for op in self.operation_group:
+                operation_str += f"{op.module}\n"
+
+        return module_str + kv_str + qo_str + operation_str
 
 class AttentionPruningGroupGenerator:
     def __init__(self, attention_module: Module):
