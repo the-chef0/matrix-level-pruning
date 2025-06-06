@@ -86,7 +86,7 @@ tcolorpy==0.1.7
 threadpoolctl==3.6.0
 tokenizers==0.21.1
 torch==2.7.0
-torch-pruning==1.5.2
+-e git+ssh://git@github.com/the-chef0/Torch-Pruning.git@6ca5595d5cb4366d2d8f11ae6879fc4b61b9727d#egg=torch_pruning
 tqdm==4.67.1
 tqdm-multiprocess==0.0.11
 transformers==4.52.2

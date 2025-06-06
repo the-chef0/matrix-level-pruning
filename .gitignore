@@ -1,4 +1,5 @@
 __pycache__/
 lm-evaluation-harness/
+Torch-Pruning/
 *.json
 *.csv
