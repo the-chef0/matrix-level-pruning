@@ -5,13 +5,12 @@ from torch.nn import Module
 
 from pruning_group import AttentionPruningGroupGenerator, TransformPruningGroup
 import utils.constants as c
-from utils.functional import is_attention_type, is_transform_type
+from utils.functional import is_attention_type, is_transform_type, meets_exclusion_criteria
 from utils.model_utils import ModelUtils
 
 def is_group_root(model_utils: ModelUtils, module: Module) -> bool:
     is_transform = is_transform_type(type(module))
-    module_name = model_utils.module_to_name[module]
-    is_not_excluded = not any(kw in module_name for kw in c.TRANSFORM_EXCLUSION_KEYWORDS)
+    is_not_excluded = not meets_exclusion_criteria(model_utils, module)
     return is_transform and is_not_excluded
 
 def is_attention_root(model_utils: ModelUtils, module: Module) -> bool:

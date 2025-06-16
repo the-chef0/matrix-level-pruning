@@ -61,6 +61,7 @@ for i in range(args.pruning_iterations):
     )
 
     _, group_to_prune = importances_and_groups.pop(0)
+    print(f"Pruning group {group_to_prune}")
     group_to_prune.prune()
 
 pruned_model_utils = None

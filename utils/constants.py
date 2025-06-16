@@ -10,6 +10,7 @@ BASE_TRANSFORM_TYPES = (
 TRANSFORM_EXCLUSION_KEYWORDS = (
     'lm_head',
     'fc',
+    'classifier',
     'q_proj',
     'k_proj',
     'v_proj',
@@ -24,6 +25,7 @@ BASE_OPERATION_TYPES = (
     nn.SiLU,
     nn.BatchNorm2d,
     nn.ReLU,
+    nn.ReLU6,
     nn.MaxPool2d,
     nn.AdaptiveAvgPool2d,
     LlamaRMSNorm
