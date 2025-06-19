@@ -1,5 +1,7 @@
 # matrix-level-pruning
 
+## Everything below is deprecated - will update soon
+
 ## Example commands
 ```
 python3 entrypoint.py \
