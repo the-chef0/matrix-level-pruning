@@ -38,6 +38,9 @@ for i in range(config.PRUNING_ITERATIONS):
     print(f"Pruning group {group_to_prune}")
     group_to_prune.prune()
 
+model_utils.build_dependency_graph()
+BinaryOperationPatcher(model_utils).patch()
+
 pruned_model_utils = model_utils
 
 if config.PRUNED_MODEL_SAVE_DIR:
