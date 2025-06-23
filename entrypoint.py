@@ -10,8 +10,9 @@ from utils.model_utils import ModelUtils
 
 model_utils = ModelUtils(
     model=config.MODEL,
-    tokenizer=config.TOKENIZER,
-    dep_graph_args=config.DEP_GRAPH_ARGS
+    dummy_input=config.DUMMY_INPUT,
+    dep_graph_args=config.DEP_GRAPH_ARGS,
+    tokenizer=config.TOKENIZER
 )
 print("Model loaded")
 

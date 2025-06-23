@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from enum import Enum
 
 from torch_pruning.dependency import Node
@@ -5,11 +6,17 @@ from transformers.selective_binary_ops import SelectiveAdd, SelectiveMultiply
 
 from .model_utils import ModelUtils
 
-class MemoKeys(Enum):
-    NEST = 0
-    PRIM = 1
+class BinaryOperationPatcher(ABC):
 
-class BinaryOperationPatcher:
+    @abstractmethod
+    def patch(self):
+        pass
+
+class DepGraphBinOpPatcher(BinaryOperationPatcher):
+
+    class MemoKeys(Enum):
+        NEST = 0
+        PRIM = 1
 
     def __init__(self, model_utils: ModelUtils):
         self.model_utils = model_utils
@@ -67,3 +74,47 @@ class BinaryOperationPatcher:
                 node_module_name = self.model_utils.module_to_name[binop_node.module]
                 print(f"{node_module_name} has both inputs pruned - enabling bypass")
                 binop_node.module.bypass = True
+
+class IRBinOpPatcher(BinaryOperationPatcher):
+
+    def __init__(self, model_utils: ModelUtils):
+        self.model_utils = model_utils
+        self.model_utils.build_ir_graph()
+        self.ir_graph = model_utils.ir_graph
+        self.binop_names = set(['add', 'mul'])
+
+    def is_binop(self, node: Node):
+        for binop_name in self.binop_names:
+            if binop_name in node.name:
+                return True
+        return False
+
+    def collect_binop_nodes(self):
+        binop_nodes = []
+
+        for candidate_node in self.ir_graph.nodes:
+            if self.is_binop(candidate_node):
+                binop_nodes.append(candidate_node)
+
+        return binop_nodes
+
+    def patch(self):
+        binop_nodes = self.collect_binop_nodes()
+        exhausted_redundant_binops = False
+        
+        while not exhausted_redundant_binops:
+            for binop_node in binop_nodes:
+                
+                args = binop_node.args
+                if args[0] == args[1]:
+                    print(f"Detected redundant {binop_node} with operands ({args[0]}, {args[1]})")
+                    for user in list(binop_node.users):
+                        print(f"Patching {args[0]} through to {user}")
+                        user.replace_input_with(binop_node, binop_node.args[0])
+                    print("Deleting")
+                    self.ir_graph.erase_node(binop_node)
+                    continue
+
+            exhausted_redundant_binops = True
+
+        self.model_utils.model.recompile()
