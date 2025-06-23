@@ -86,6 +86,9 @@ def contains_excluded_keyword(module_name: str):
     
     return contains_excluded
 
+def is_attention_child(module_name: str):
+    return any(kw in module_name for kw in c.ATTENTION_CHILD_KEYWORDS)
+
 def is_feature_map_transforming_conv(module: Module, module_name: str):
     if issubclass(type(module), _ConvNd):
         num_dims = get_num_conv_dims(module)
@@ -113,5 +116,6 @@ def meets_exclusion_criteria(model_utils: ModelUtils, module: Module):
     module_name = model_utils.module_to_name[module]
     exclusion_criteria = []
     exclusion_criteria.append(contains_excluded_keyword(module_name))
+    exclusion_criteria.append(is_attention_child(module_name))
     exclusion_criteria.append(is_feature_map_transforming_conv(module, module_name))
     return any(crit for crit in exclusion_criteria)
