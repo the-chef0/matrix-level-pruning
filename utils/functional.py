@@ -119,3 +119,16 @@ def meets_exclusion_criteria(model_utils: ModelUtils, module: Module):
     exclusion_criteria.append(is_attention_child(module_name))
     exclusion_criteria.append(is_feature_map_transforming_conv(module, module_name))
     return any(crit for crit in exclusion_criteria)
+
+def replace_module_by_name(model_utils: ModelUtils, module_name, new_module):
+    # Split the module name into parts
+    parts = module_name.split('.')
+    
+    # Get the parent module (everything except the last part)
+    parent = model_utils.model
+    for part in parts[:-1]:
+        parent = getattr(parent, part)
+    
+    # Replace the module
+    setattr(parent, parts[-1], new_module)
+

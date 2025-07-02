@@ -8,21 +8,9 @@ from torch_pruning.dependency import Group
 from torch_pruning.pruner.importance import GroupMagnitudeImportance
 
 from utils.dependency_utils import RootDependencyUtils, DependencyDirection
-from utils.functional import is_transform_type
+from utils.functional import is_transform_type, replace_module_by_name
 from utils.model_utils import ModelUtils
 from utils.operation_group_utils import get_operation_group
-
-def replace_module_by_name(model_utils: ModelUtils, module_name, new_module):
-    # Split the module name into parts
-    parts = module_name.split('.')
-    
-    # Get the parent module (everything except the last part)
-    parent = model_utils.model
-    for part in parts[:-1]:
-        parent = getattr(parent, part)
-    
-    # Replace the module
-    setattr(parent, parts[-1], new_module)
 
 def get_operation_modules(operation_group: list):
     return [node.module for node in operation_group]
@@ -41,7 +29,7 @@ class PruningGroup(ABC):
     def __str__(self):
         pass
 
-class AttentionPruningGroup(ABC):
+class AttentionPruningGroup(PruningGroup):
     def get_singleton_group(self, model_utils: ModelUtils, proj: Linear, idxs: list, pruning_fn):
         full_group = model_utils.dep_graph.get_pruning_group(proj, pruning_fn, idxs)
         singleton_group = Group()
@@ -140,7 +128,7 @@ class AttentionPruningGroupGenerator:
                 dims_per_head=self.dims_per_head
             )
 
-class TransformPruningGroup(ABC):
+class TransformPruningGroup(PruningGroup):
     def __init__(self, model_utils: ModelUtils, root_module: Module):
         self.model_utils = model_utils
         self.root_dependency_utils = RootDependencyUtils(model_utils, root_module)
@@ -148,9 +136,9 @@ class TransformPruningGroup(ABC):
         self.channel_idxs = [i for i in range(self.root_dim_high)]
 
         self.transform_group = model_utils.dep_graph.get_pruning_group(
-            root_module,
-            self.root_dependency_utils.fn,
-            self.channel_idxs
+            module=root_module,
+            pruning_fn=self.root_dependency_utils.fn,
+            idxs=self.channel_idxs
         )
         self.transform_group_root = self.transform_group[:1]
 
