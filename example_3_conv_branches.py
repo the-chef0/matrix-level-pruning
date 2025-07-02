@@ -1,10 +1,9 @@
 import torch
 from torch import nn
 # from torch.utils.tensorboard import SummaryWriter
-from transformers.selective_binary_ops import SelectiveAdd
 
 from importances_and_groups import collect_groups
-from utils.binary_operation_patcher import BinaryOperationPatcher
+from utils.identity_patcher import IdentityPatcher
 from utils.customized_pruners import OperationPruner
 from utils.model_utils import ModelUtils
 
@@ -30,9 +29,6 @@ class ExampleModel(nn.Module):
         self.conv2c = nn.Conv2d(32, 64, 5, padding=2)
         self.relu2c = nn.ReLU()
 
-        # self.conv2c = nn.Conv2d(32, 64, 5, padding=2)
-        # self.relu2c = nn.ReLU()
-
         # Block 3 - merge and continue
         self.conv3 = nn.Conv2d(64, 128, 1)
         self.bn3 = nn.BatchNorm2d(128)
@@ -41,9 +37,6 @@ class ExampleModel(nn.Module):
         # Output
         self.avgpool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Linear(128, 10)
-
-        self.add1 = SelectiveAdd()
-        self.add2 = SelectiveAdd()
 
     def forward(self, x):
         # Block 1
@@ -64,7 +57,8 @@ class ExampleModel(nn.Module):
         xc = self.relu2c(xc)
 
         # Merge
-        x = self.add2(self.add1(xa, xb), xc)
+        x = xa + xb + xc
+        # x = self.add2(self.add1(xa, xb), xc)
         # x = torch.cat([xa, xb], dim=1)
 
         # Continue
@@ -81,23 +75,25 @@ class ExampleModel(nn.Module):
 
 MODEL = ExampleModel().to('cuda')
 TOKENIZER = None
+DUMMY_INPUT = torch.rand(1,3,256,256).to('cuda')
 IMPORTANCES_SAVE_PATH = './importances.csv'
 PRUNING_ITERATIONS = 1
 PRUNED_MODEL_SAVE_DIR = None
 EVALUATE = False
 EVAL_RESULTS_PATH = './eval-results.json'
 DEP_GRAPH_ARGS = {
-    'example_inputs': torch.rand(1,3,512,512).to('cuda'),
+    'example_inputs': DUMMY_INPUT,
     'customized_pruners': {
         nn.ReLU: OperationPruner(),
-        SelectiveAdd: OperationPruner()
+        nn.Identity: OperationPruner()
     }
 }
 
 model_utils = ModelUtils(
     model=MODEL,
-    tokenizer=TOKENIZER,
-    dep_graph_args=DEP_GRAPH_ARGS
+    dummy_input=DUMMY_INPUT,
+    dep_graph_args=DEP_GRAPH_ARGS,
+    tokenizer=TOKENIZER
 )
 print("Model loaded")
 
@@ -141,5 +137,5 @@ print(g)
 g.prune()
 model_utils.build_dependency_graph()
 
-binary_operation_patcher = BinaryOperationPatcher(model_utils)
-binary_operation_patcher.patch()
+IdentityPatcher(model_utils).patch()
+# torch.save(model_utils.model, '/home/michal/hf-models/conv-pruned/model.pth')

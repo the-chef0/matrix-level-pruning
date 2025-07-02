@@ -1,31 +1,35 @@
+import torch
 from torch import nn
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.models.llama.modeling_llama import LlamaRMSNorm, SelectiveMultiply
+from transformers.models.llama.modeling_llama import LlamaRMSNorm
 
+from eval_pruned import evaluate_pruned
 from importances_and_groups import collect_groups
-from utils.binary_operation_patcher import BinaryOperationPatcher
+from utils.identity_patcher import IdentityPatcher
 from utils.customized_pruners import OperationPruner, RMSNormPruner
 from utils.model_utils import ModelUtils
 
 MODEL = AutoModelForCausalLM.from_pretrained('meta-llama/Llama-3.2-1B').to('cuda')
 TOKENIZER = AutoTokenizer.from_pretrained('meta-llama/Llama-3.2-1B')
+DUMMY_INPUT = MODEL.dummy_inputs['input_ids'].to('cuda')
 IMPORTANCES_SAVE_PATH = './importances.csv'
 PRUNING_ITERATIONS = 1
 PRUNED_MODEL_SAVE_DIR = '/home/michal/hf-models/pruned'
-EVALUATE = True
+EVALUATE = False
 EVAL_RESULTS_PATH = './eval-results.json'
 DEP_GRAPH_ARGS = {
-    'example_inputs': MODEL.dummy_inputs['input_ids'].to('cuda'),
+    'example_inputs': DUMMY_INPUT,
     'output_transform': lambda output: output.logits,
     'customized_pruners': {
         LlamaRMSNorm: RMSNormPruner(),
         nn.SiLU: OperationPruner(),
-        SelectiveMultiply: OperationPruner()
+        nn.Identity: OperationPruner()
     }
 }
 
 model_utils = ModelUtils(
     model=MODEL,
+    dummy_input=DUMMY_INPUT,
     tokenizer=TOKENIZER,
     dep_graph_args=DEP_GRAPH_ARGS
 )
@@ -56,6 +60,6 @@ importances_and_groups = collect_groups(
 _, g = importances_and_groups[129]
 print(g)
 g.prune()
-
 model_utils.build_dependency_graph()
-BinaryOperationPatcher(model_utils).patch()
+
+IdentityPatcher(model_utils).patch()
