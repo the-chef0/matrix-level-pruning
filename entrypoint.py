@@ -5,7 +5,7 @@ import torch
 import config
 from eval_pruned import evaluate_pruned # TODO: Make relative imports work
 from importances_and_groups import collect_groups
-from utils.binary_operation_patcher import BinaryOperationPatcher
+from utils.identity_patcher import IdentityPatcher
 from utils.model_utils import ModelUtils
 
 model_utils = ModelUtils(
@@ -40,7 +40,7 @@ for i in range(config.PRUNING_ITERATIONS):
     group_to_prune.prune()
 
 model_utils.build_dependency_graph()
-BinaryOperationPatcher(model_utils).patch()
+IdentityPatcher(model_utils).patch()
 
 pruned_model_utils = model_utils
 

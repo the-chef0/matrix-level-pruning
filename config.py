@@ -1,7 +1,7 @@
 from torch import nn
 from torch.nn import SiLU
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.models.llama.modeling_llama import LlamaRMSNorm, SelectiveMultiply
+from transformers.models.llama.modeling_llama import LlamaRMSNorm
 
 from utils.customized_pruners import OperationPruner, RMSNormPruner
 
@@ -15,9 +15,7 @@ class LogitsOnlyWrapper(nn.Module):
         output = self.model(input_ids=input_ids, use_cache=False)
         return output.logits
 
-MODEL = LogitsOnlyWrapper(
-    AutoModelForCausalLM.from_pretrained('meta-llama/Llama-3.2-1B')
-)
+MODEL = AutoModelForCausalLM.from_pretrained('meta-llama/Llama-3.2-1B').to('cuda')
 TOKENIZER = AutoTokenizer.from_pretrained('meta-llama/Llama-3.2-1B')
 DUMMY_INPUT = MODEL.dummy_inputs['input_ids'].to('cuda')
 IMPORTANCES_SAVE_PATH = './importances.csv'
@@ -27,10 +25,10 @@ EVALUATE = True
 EVAL_RESULTS_PATH = './eval-results.json'
 DEP_GRAPH_ARGS = {
     'example_inputs': DUMMY_INPUT,
-    #'output_transform': lambda output: output.logits,
+    'output_transform': lambda output: output.logits,
     'customized_pruners': {
         LlamaRMSNorm: RMSNormPruner(),
         nn.SiLU: OperationPruner(),
-        SelectiveMultiply: OperationPruner()
+        nn.Identity: OperationPruner() # TODO: add nn.Identity automatically to customized_pruners in model_utils
     }
 }
