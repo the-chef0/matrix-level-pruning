@@ -3,7 +3,7 @@ from torch import nn
 # from torch.utils.tensorboard import SummaryWriter
 
 from importances_and_groups import collect_groups
-from utils.identity_patcher import IdentityPatcher
+from utils.identity_patcher import IdentityPatcher, IdentityWithGrad
 from utils.customized_pruners import OperationPruner
 from utils.model_utils import ModelUtils
 
@@ -85,7 +85,7 @@ DEP_GRAPH_ARGS = {
     'example_inputs': DUMMY_INPUT,
     'customized_pruners': {
         nn.ReLU: OperationPruner(),
-        nn.Identity: OperationPruner()
+        IdentityWithGrad: OperationPruner()
     }
 }
 
@@ -135,7 +135,8 @@ importances_and_groups = collect_groups(
 _, g = importances_and_groups[0]
 print(g)
 g.prune()
+
+model_utils.build_module_name_mappings()
 model_utils.build_dependency_graph()
 
 IdentityPatcher(model_utils).patch()
-# torch.save(model_utils.model, '/home/michal/hf-models/conv-pruned/model.pth')

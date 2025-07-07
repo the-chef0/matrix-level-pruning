@@ -5,7 +5,7 @@ from transformers.models.llama.modeling_llama import LlamaRMSNorm
 
 from eval_pruned import evaluate_pruned
 from importances_and_groups import collect_groups
-from utils.identity_patcher import IdentityPatcher
+from utils.identity_patcher import IdentityPatcher, IdentityWithGrad
 from utils.customized_pruners import OperationPruner, RMSNormPruner
 from utils.model_utils import ModelUtils
 
@@ -23,7 +23,7 @@ DEP_GRAPH_ARGS = {
     'customized_pruners': {
         LlamaRMSNorm: RMSNormPruner(),
         nn.SiLU: OperationPruner(),
-        nn.Identity: OperationPruner()
+        IdentityWithGrad: OperationPruner()
     }
 }
 
@@ -60,6 +60,8 @@ importances_and_groups = collect_groups(
 _, g = importances_and_groups[129]
 print(g)
 g.prune()
+
+model_utils.build_module_name_mappings()
 model_utils.build_dependency_graph()
 
 IdentityPatcher(model_utils).patch()
