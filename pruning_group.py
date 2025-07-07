@@ -2,13 +2,14 @@ from abc import ABC, abstractmethod
 from typing import Callable
 
 import numpy as np
-from torch.nn import Identity, Linear, Module
+from torch.nn import Linear, Module
 import torch_pruning as tp
 from torch_pruning.dependency import Group
 from torch_pruning.pruner.importance import GroupMagnitudeImportance
 
 from utils.dependency_utils import RootDependencyUtils, DependencyDirection
 from utils.functional import is_transform_type, replace_module_by_name
+from utils.identity_patcher import IdentityWithGrad
 from utils.model_utils import ModelUtils
 from utils.operation_group_utils import get_operation_group
 
@@ -78,10 +79,10 @@ class AttentionPruningGroup(PruningGroup):
             operation_modules = get_operation_modules(self.operation_group)
             for op_module in operation_modules:
                 op_module_name = self.model_utils.module_to_name[op_module]
-                replace_module_by_name(self.model_utils, op_module_name, Identity())
+                replace_module_by_name(self.model_utils, op_module_name, IdentityWithGrad())
             
             attention_module_name = self.model_utils.module_to_name[self.module]
-            replace_module_by_name(self.model_utils, attention_module_name, Identity())
+            replace_module_by_name(self.model_utils, attention_module_name, IdentityWithGrad())
 
     def __str__(self):
         module_str = f"{self.model_utils.module_to_name[self.module]}\n"
@@ -213,13 +214,13 @@ class TransformPruningGroup(PruningGroup):
         # Prune transform group root
         root_module = self.get_transform_root_module()
         root_module_name = self.model_utils.module_to_name[root_module]
-        replace_module_by_name(self.model_utils, root_module_name, Identity())
+        replace_module_by_name(self.model_utils, root_module_name, IdentityWithGrad())
 
         # Prune operations
         operation_modules = get_operation_modules(self.operation_group)
         for op_module in operation_modules:
             op_module_name = self.model_utils.module_to_name[op_module]
-            replace_module_by_name(self.model_utils, op_module_name, Identity())
+            replace_module_by_name(self.model_utils, op_module_name, IdentityWithGrad())
 
     def __str__(self):
         root_module = self.get_transform_root_module()

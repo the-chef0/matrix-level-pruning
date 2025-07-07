@@ -8,6 +8,23 @@ from torch_pruning.ops import _ConcatOp, _ElementWiseOp
 from .model_utils import ModelUtils
 from .functional import replace_module_by_name #TODO: move to model_utils?
 
+class IdentityFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        return input
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output
+
+class IdentityWithGrad(nn.Identity):
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__()
+
+    def forward(self, input: Tensor) -> Tensor:
+        return IdentityFunction.apply(input)
+
 class AdditiveIdentity(nn.Identity):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -67,10 +84,9 @@ class IdentityPatcher:
         else:
             return recursive_case(node)
 
-    # TODO: turns out the TP dep graph bug also breaks additions of 3 or more tensors :(
-    # gotta fix
     def patch_arithmetic_node_operands(self, node: Node, grad_fn_name: str):
         identity_operand_nodes = self.find_identity_operand_nodes(node.inputs)
+        print(node.inputs)
 
         if identity_operand_nodes:
             fst_identity_module = identity_operand_nodes[0].module
@@ -89,12 +105,7 @@ class IdentityPatcher:
                     new_module=arithmetic_identity_type()
                 )
 
-    # TODO: This function doesn't work because of what looks like a bug in the TP depgraph
-    # that prevents it from recognizing multiple identity inputs into a node.
-    # Maybe it's a small fix that I can implement later. After that I can generalize
-    # this function further because it only patches concat inputs if they all come from the
-    # same predecessor. The simplest patchable case is two inputs coming from the same predecessor,
-    # but torch.cat takes an arbitrary number of inputs
+    # TODO: Looks like I fixed the depgraph issue, test this
     #
     # def patch_concat_operands(self, node: Node):
     #     identity_operand_nodes = self.find_identity_operand_nodes(node.inputs)
