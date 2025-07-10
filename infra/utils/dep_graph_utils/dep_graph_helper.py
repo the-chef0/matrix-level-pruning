@@ -1,19 +1,15 @@
-from dataclasses import dataclass
 from enum import Enum
-from typing import Callable
 
 from torch.nn import Module
-import torch_pruning as tp
-from torch_pruning.pruner.function import BasePruningFunc
 
-from .model_utils import ModelUtils
+from infra.utils.model_utils import ModelUtils
 
 class DependencyDirection(Enum):
     FORWARD = 'foward'
     BACKWARD = 'backward'
     NOT_APPLICABLE = 'not_needed'
 
-class RootDependencyUtils:
+class DepGraphHelper:
     def __init__(self, model_utils: ModelUtils, module: Module):
         tp_module_pruner = model_utils.dep_graph.get_pruner_of_module(module)
         self.in_channels = tp_module_pruner.get_in_channels(module)

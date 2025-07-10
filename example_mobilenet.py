@@ -3,9 +3,9 @@ import os
 import torch
 from torch import nn
 
-from importances_and_groups import collect_groups
-from utils.customized_pruners import OperationPruner
-from utils.model_utils import ModelUtils
+from infra.chain_collector import collect_groups
+from infra.utils.dep_graph_utils.custom_pruners import OperationPruner
+from infra.utils.model_utils import ModelUtils
 
 def dwise_conv(ch_in, stride=1):
     return (

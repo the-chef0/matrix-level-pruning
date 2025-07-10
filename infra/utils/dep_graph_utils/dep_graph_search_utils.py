@@ -1,12 +1,13 @@
 from typing import List, Set, Type
 
 from torch.nn import Linear, Module
-from torch_pruning.dependency import Node
+from torch_pruning.dependency import Group, Node
 
-from . import constants as c
-from .dependency_utils import DependencyDirection
-from .functional import is_transform_type
-from .model_utils import ModelUtils
+import config.config as c
+from infra.utils.dep_graph_utils.dep_graph_helper import DependencyDirection
+from infra.utils.model_utils import ModelUtils
+from infra.utils.module_utils.pruning_tree_collection_utils import is_transform_type
+
 
 def get_adjacent_nodes(node: Node, search_direction: DependencyDirection) -> List[Module]:
     if search_direction == DependencyDirection.FORWARD:
@@ -64,3 +65,10 @@ def get_operation_group(model_utils: ModelUtils, module: Module) -> Set[Node]:
             depth_pruning_group.add(node)
 
     return depth_pruning_group
+
+def get_param_subtree_singleton(model_utils: ModelUtils, module: Module, idxs: list, pruning_fn):
+    full_subtree = model_utils.dep_graph.get_pruning_group(module, pruning_fn, idxs)
+    singleton_subtree = Group()
+    setattr(singleton_subtree, '_group', full_subtree[:1])
+    setattr(singleton_subtree, '_DG', model_utils.dep_graph)
+    return singleton_subtree

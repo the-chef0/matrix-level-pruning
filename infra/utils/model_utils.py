@@ -2,17 +2,27 @@ from torch import nn, Tensor
 from torch.fx.experimental.proxy_tensor import make_fx
 from torch_pruning.dependency import DependencyGraph
 
+from infra.utils.dep_graph_utils.custom_pruners import OperationPruner
+from infra.utils.module_utils.identity_types import IdentityWithGrad
+
 class ModelUtils:
+    """A class encapsulating the PyTorch module
+    representation of the model, the Torch-Pruning DepGraph representation
+    of the model, and auxiliary methods and data structures.
+    """
+
     def __init__(self, model: nn.Module, dummy_input: Tensor, dep_graph_args: dict, tokenizer = None):
         self.model = model
         self.tokenizer = tokenizer
+
         self.dep_graph_args = dep_graph_args
         self.dep_graph_args['model'] = self.model
+        self.dep_graph_args['customized_pruners'][IdentityWithGrad] = OperationPruner()
+        self.dep_graph_args
         self.dep_graph = None
         self.dummy_input = dummy_input
         self.module_to_name = None
         self.name_to_module = None
-        self.ir_graph = None
 
     def build_module_name_mappings(self):
         self.module_to_name = {}
@@ -23,6 +33,14 @@ class ModelUtils:
     def build_dependency_graph(self):
         self.dep_graph = DependencyGraph().build_dependency(**self.dep_graph_args)
 
-    def build_ir_graph(self):
-        self.model = make_fx(self.model)(self.dummy_input)
-        self.ir_graph = self.model.graph
+    def replace_module_by_name(self, module_name, new_module):
+        # Split the module name into parts
+        parts = module_name.split('.')
+        
+        # Get the parent module (everything except the last part)
+        parent = self.model
+        for part in parts[:-1]:
+            parent = getattr(parent, part)
+        
+        # Replace the module
+        setattr(parent, parts[-1], new_module)

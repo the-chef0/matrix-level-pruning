@@ -2,11 +2,11 @@ import os
 
 import torch
 
-import config
-from eval_pruned import evaluate_pruned # TODO: Make relative imports work
-from importances_and_groups import collect_groups
-from utils.identity_patcher import IdentityPatcher
-from utils.model_utils import ModelUtils
+import config.config as config
+from infra.evaluator import evaluate_pruned
+from infra.passes.identity_patching import IdentityPatcher
+from infra.passes.pruning_tree_collection import collect_pruning_trees
+from infra.utils.model_utils import ModelUtils
 
 model_utils = ModelUtils(
     model=config.MODEL,
@@ -29,13 +29,13 @@ for i in range(config.PRUNING_ITERATIONS):
     print("(Re)building dependency graph")
     model_utils.build_dependency_graph()
 
-    importances_and_groups = collect_groups(
+    importances_and_trees = collect_pruning_trees(
         model_utils,
         iteration=i,
         save_path=config.IMPORTANCES_SAVE_PATH
     )
 
-    _, group_to_prune = importances_and_groups.pop(0)
+    _, group_to_prune = importances_and_trees.pop(0)
     print(f"Pruning group {group_to_prune}")
     group_to_prune.prune()
 

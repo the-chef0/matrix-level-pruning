@@ -1,52 +1,11 @@
-from typing import Any
-
-import torch
-from torch import nn, Tensor
+import numpy as np
+from torch import nn
 from torch_pruning.dependency import Node
 from torch_pruning.ops import _ConcatOp, _ElementWiseOp
 
-from .model_utils import ModelUtils
-from .functional import replace_module_by_name #TODO: move to model_utils?
-
-class IdentityFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, input):
-        return input
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        return grad_output
-
-class IdentityWithGrad(nn.Identity):
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__()
-
-    def forward(self, input: Tensor) -> Tensor:
-        return IdentityFunction.apply(input)
-
-class AdditiveIdentity(nn.Identity):
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__()
-
-    def forward(self, input: Tensor) -> Tensor:
-        return torch.zeros_like(input)
-
-class MultiplicativeIdentity(nn.Identity):
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__()
-
-    def forward(self, input: Tensor) -> Tensor:
-        return torch.ones_like(input)
-
-class ConcatenativeIdentity(nn.Identity):
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__()
-
-    def forward(self, input: Tensor) -> Tensor:
-        return torch.empty(0)
+from infra.utils.module_utils.identity_types import AdditiveIdentity, ConcatenativeIdentity, MultiplicativeIdentity
+from infra.utils.model_utils import ModelUtils
+from infra.utils.dep_graph_utils.dep_graph_search_utils import get_param_subtree_singleton
 
 class IdentityPatcher:
 
@@ -84,9 +43,21 @@ class IdentityPatcher:
         else:
             return recursive_case(node)
 
+    def get_nearest_successor_module_node(self, node: Node):
+        def recursive_case(node: Node):
+            for out in node.outputs:
+                if out.module in self.model_modules and not isinstance(out.module, nn.Identity):
+                    return out
+                else:
+                    return recursive_case(out)
+
+        if node.module in self.model_modules and not isinstance(node.module, nn.Identity):
+            return node
+        else:
+            return recursive_case(node)
+
     def patch_arithmetic_node_operands(self, node: Node, grad_fn_name: str):
         identity_operand_nodes = self.find_identity_operand_nodes(node.inputs)
-        print(node.inputs)
 
         if identity_operand_nodes:
             fst_identity_module = identity_operand_nodes[0].module
@@ -99,32 +70,46 @@ class IdentityPatcher:
                 arithmetic_identity_type = self.ARITHMETIC_TYPE_TO_IDENTITY_TYPE[grad_fn_name]
                 identity_module_name = self.model_utils.module_to_name[fst_identity_module]
                 print(f"Patching identity in {identity_module_name} with {arithmetic_identity_type.__name__}")
-                replace_module_by_name(
-                    model_utils=self.model_utils,
+                self.model_utils.replace_module_by_name(
                     module_name=identity_module_name,
                     new_module=arithmetic_identity_type()
                 )
 
-    # TODO: Looks like I fixed the depgraph issue, test this
-    #
-    # def patch_concat_operands(self, node: Node):
-    #     identity_operand_nodes = self.find_identity_operand_nodes(node.inputs)
+    def adjust_concat_successor_dims(self, concat_node: Node):
+        concat_sizes = concat_node.module.concat_sizes
+        end_idx = np.sum(concat_sizes[:-1])
+        idxs = list(range(end_idx))
 
-    #     if identity_operand_nodes:
-    #         predecessors = []
-    #         for operand in node.inputs:
-    #             predecessors.append(self.get_nearest_predecessor_module_node(operand))
+        successor_module = self.get_nearest_successor_module_node(concat_node).module
+        pruner = self.model_utils.dep_graph.get_pruner_of_module(successor_module)
+        setattr(concat_node, 'dependencies', [])
+        successor_subtree_singleton = get_param_subtree_singleton(
+            model_utils=self.model_utils,
+            module=successor_module,
+            idxs=idxs,
+            pruning_fn=pruner.prune_in_channels
+        )
+        successor_subtree_singleton.prune()
+
+    def patch_concat_node_operands(self, node: Node):
+        identity_operand_nodes = self.find_identity_operand_nodes(node.inputs)
+        
+        if identity_operand_nodes:
+            predecessors = []
+            for operand in node.inputs:
+                predecessors.append(self.get_nearest_predecessor_module_node(operand))
             
-    #         if all(pred == predecessors[0] for pred in predecessors):
-    #             for id_operand_node in identity_operand_nodes:
-    #                 identity_module = id_operand_node.module
-    #                 identity_module_name = self.model_utils.module_to_name[identity_module]
-    #                 adjust_concat_successor_dim() # TODO: implement
-    #                 replace_module_by_name(
-    #                     model_utils=self.model_utils,
-    #                     module_name=identity_module_name,
-    #                     new_module=ConcatenativeIdentity()
-    #                 )
+            if all(pred == predecessors[0] for pred in predecessors):
+                for id_operand_node in identity_operand_nodes[1:]:
+                    identity_module = id_operand_node.module
+                    identity_module_name = self.model_utils.module_to_name[identity_module]
+                    self.model_utils.replace_module_by_name(
+                        model_utils=self.model_utils,
+                        module_name=identity_module_name,
+                        new_module=ConcatenativeIdentity()
+                    )
+                
+                self.adjust_concat_successor_dims(node)
 
     def patch(self):
         all_nodes = self.model_utils.dep_graph.module2node.values()
@@ -136,5 +121,5 @@ class IdentityPatcher:
                 if grad_fn_name in self.ARITHMETIC_TYPE_NAMES:
                     self.patch_arithmetic_node_operands(node, grad_fn_name)
 
-            # elif isinstance(node.module, _ConcatOp) and node.module.concat_sizes is not None:
-            #     self.patch_concat_node_operands(node)
+            elif isinstance(node.module, _ConcatOp) and node.module.concat_sizes is not None:
+                self.patch_concat_node_operands(node)
