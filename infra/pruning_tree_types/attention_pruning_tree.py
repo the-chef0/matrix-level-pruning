@@ -3,6 +3,7 @@ from torch.nn import Module
 import torch_pruning as tp
 from torch_pruning.pruner.importance import GroupMagnitudeImportance
 
+from config.config_protocol import ConfigProtocol
 from infra.pruning_tree_types.pruning_tree import PruningTree
 from infra.utils.dep_graph_utils.dep_graph_search_utils import get_operation_group, get_param_subtree_singleton
 from infra.utils.model_utils import ModelUtils
@@ -11,7 +12,7 @@ from infra.utils.module_utils.identity_types import IdentityWithGrad
 # TODO: fix everything here
 class AttentionPruningTree(PruningTree):
 
-    def __init__(self, model_utils: ModelUtils, attention_module: Module, qo_idxs: list, kv_idxs: list, dims_per_head: int):
+    def __init__(self,  cfg: ConfigProtocol, model_utils: ModelUtils, attention_module: Module, qo_idxs: list, kv_idxs: list, dims_per_head: int):
         self.model_utils = model_utils
         self.module = attention_module
         self.importance_fn = GroupMagnitudeImportance(normalizer=None, group_reduction=None)
@@ -20,25 +21,25 @@ class AttentionPruningTree(PruningTree):
         self.kv_idxs = kv_idxs
 
         self.q_singleton = get_param_subtree_singleton(
-            model_utils=model_utils,
+            dep_graph=model_utils.dep_graph,
             module=self.module.q_proj,
             idxs=self.qo_idxs_flat,
             pruning_fn=tp.prune_linear_out_channels
         )
         self.k_singleton = get_param_subtree_singleton(
-            model_utils=model_utils,
+            dep_graph=model_utils.dep_graph,
             module=self.module.k_proj,
             idxs=self.kv_idxs,
             pruning_fn=tp.prune_linear_out_channels
         )
         self.v_singleton = get_param_subtree_singleton(
-            model_utils=model_utils,
+            dep_graph=model_utils.dep_graph,
             module=self.module.v_proj,
             idxs=self.kv_idxs,
             pruning_fn=tp.prune_linear_out_channels
         )
         self.o_singleton = get_param_subtree_singleton(
-            model_utils=model_utils,
+            dep_graph=model_utils.dep_graph,
             module=self.module.o_proj,
             idxs=self.qo_idxs_flat,
             pruning_fn=tp.prune_linear_in_channels
@@ -47,7 +48,8 @@ class AttentionPruningTree(PruningTree):
         self.operation_group = None
         # When there is only one head left, we can start pruning operations
         if self.module.k_proj.out_features == dims_per_head:
-            self.operation_group = list(get_operation_group(model_utils, self.module.o_proj))
+            o_proj_node = model_utils.dep_graph.module2node[attention_module.o_proj]
+            self.operation_group = list(get_operation_group(cfg, o_proj_node))
 
     def get_importance(self):
         q_heads_importance = np.sum(self.importance_fn(self.q_singleton).cpu().numpy())
@@ -101,7 +103,7 @@ class AttentionPruningTreeGenerator:
         num_q_heads = self.module.q_proj.out_features // self.dims_per_head
         self.num_kv_groups = num_q_heads // self.num_kv_heads
 
-    def get_trees(self, model_utils: ModelUtils):
+    def get_trees(self, cfg: ConfigProtocol, model_utils: ModelUtils):
         for kv_head_offset in range(self.num_kv_heads):
             kv_head_start_idx = kv_head_offset * self.dims_per_head
             kv_head_end_idx = (kv_head_offset + 1) * self.dims_per_head
@@ -115,6 +117,7 @@ class AttentionPruningTreeGenerator:
                 qo_idxs.append(q_head_idxs)
 
             yield AttentionPruningTree(
+                cfg=cfg,
                 model_utils=model_utils,
                 attention_module=self.module,
                 qo_idxs=qo_idxs,

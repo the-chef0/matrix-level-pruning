@@ -4,20 +4,20 @@ from torch.nn import Module
 from torch.nn.modules.conv import _ConvNd
 from typing import Type
 
-from config import config as c
+from config.config_protocol import ConfigProtocol
 from infra.utils.model_utils import ModelUtils
 
-def is_transform_type(module_type: Type):
+def is_transform_type(cfg: ConfigProtocol, module_type: Type):
     is_transform = False
-    for transform_type in c.BASE_TRANSFORM_TYPES:
+    for transform_type in cfg.BASE_TRANSFORM_TYPES:
         if issubclass(module_type, transform_type):
             is_transform = True
             break
     return is_transform
 
-def is_attention_type(module_type: Type):
+def is_attention_type(cfg: ConfigProtocol, module_type: Type):
     is_attention = False
-    for transform_type in c.BASE_ATTENTION_TYPES:
+    for transform_type in cfg.BASE_ATTENTION_TYPES:
         if issubclass(module_type, transform_type):
             is_attention = True
             break
@@ -60,7 +60,7 @@ def get_conv_params_per_dim(module, num_dims):
 
     return padding_per_dim, dilation_per_dim, kernel_size_per_dim, stride_per_dim
 
-def changes_feature_map_dims(module, num_dims, padding, dilation, kernel_size, stride):
+def changes_feature_map_dims(num_dims, padding, dilation, kernel_size, stride): # TODO: type hints
     DUMMY_INPUT_SIZE = 64
     assert num_dims == len(padding)
     assert len(padding) == len(dilation)
@@ -79,15 +79,15 @@ def changes_feature_map_dims(module, num_dims, padding, dilation, kernel_size, s
 
     return not preserved
 
-def contains_excluded_keyword(module_name: str):
-    contains_excluded = any(kw in module_name for kw in c.TRANSFORM_EXCLUSION_KEYWORDS)
+def contains_excluded_keyword(cfg: ConfigProtocol, module_name: str):
+    contains_excluded = any(kw in module_name for kw in cfg.TRANSFORM_EXCLUSION_KEYWORDS)
     if contains_excluded:
         print(f"Excluding {module_name} - contains excluded keyword")
     
     return contains_excluded
 
-def is_attention_child(module_name: str):
-    return any(kw in module_name for kw in c.ATTENTION_CHILD_KEYWORDS)
+def is_attention_child(cfg: ConfigProtocol, module_name: str):
+    return any(kw in module_name for kw in cfg.ATTENTION_CHILD_KEYWORDS)
 
 def is_feature_map_transforming_conv(module: Module, module_name: str):
     if issubclass(type(module), _ConvNd):
@@ -109,13 +109,12 @@ def is_feature_map_transforming_conv(module: Module, module_name: str):
     else:
         return False
 
-def meets_exclusion_criteria(model_utils: ModelUtils, module: Module):
+def meets_exclusion_criteria(cfg: ConfigProtocol, module: Module, module_name: str):
     # TODO: maybe write an abstraction for this that defines an interface for these
     # exclusion checking methods and allows me to "register" them with a checker
     # that does what this function does
-    module_name = model_utils.module_to_name[module]
     exclusion_criteria = []
-    exclusion_criteria.append(contains_excluded_keyword(module_name))
-    exclusion_criteria.append(is_attention_child(module_name))
+    exclusion_criteria.append(contains_excluded_keyword(cfg, module_name))
+    exclusion_criteria.append(is_attention_child(cfg, module_name))
     exclusion_criteria.append(is_feature_map_transforming_conv(module, module_name))
     return any(crit for crit in exclusion_criteria)

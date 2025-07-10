@@ -2,6 +2,7 @@ from torch import nn, Tensor
 from torch.fx.experimental.proxy_tensor import make_fx
 from torch_pruning.dependency import DependencyGraph
 
+from config.config_protocol import ConfigProtocol
 from infra.utils.dep_graph_utils.custom_pruners import OperationPruner
 from infra.utils.module_utils.identity_types import IdentityWithGrad
 
@@ -11,16 +12,16 @@ class ModelUtils:
     of the model, and auxiliary methods and data structures.
     """
 
-    def __init__(self, model: nn.Module, dummy_input: Tensor, dep_graph_args: dict, tokenizer = None):
-        self.model = model
-        self.tokenizer = tokenizer
+    def __init__(self, cfg: ConfigProtocol):
+        self.model = cfg.MODEL
+        self.tokenizer = cfg.TOKENIZER
 
-        self.dep_graph_args = dep_graph_args
+        self.dep_graph_args = cfg.DEP_GRAPH_ARGS
         self.dep_graph_args['model'] = self.model
         self.dep_graph_args['customized_pruners'][IdentityWithGrad] = OperationPruner()
         self.dep_graph_args
         self.dep_graph = None
-        self.dummy_input = dummy_input
+        self.dummy_input = cfg.DUMMY_INPUT
         self.module_to_name = None
         self.name_to_module = None
 

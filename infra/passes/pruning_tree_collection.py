@@ -10,13 +10,14 @@ import os
 
 from torch.nn import Module
 
+from config.config_protocol import ConfigProtocol
 from infra.utils.model_utils import ModelUtils
 from infra.utils.module_utils.pruning_tree_collection_utils import is_attention_type, is_transform_type, meets_exclusion_criteria
 from infra.pruning_tree_types.attention_pruning_tree import AttentionPruningTreeGenerator
 from infra.pruning_tree_types.pruning_tree import PruningTree
 from infra.pruning_tree_types.transform_pruning_tree import TransformPruningTree
 
-def is_transform_tree_root(model_utils: ModelUtils, module: Module) -> bool: # TODO: move to module utils?
+def is_transform_tree_root(cfg: ConfigProtocol, model_utils: ModelUtils, module: Module) -> bool: # TODO: move to module utils?
     """Checks whether the given module can be treated as the root of a
     transform pruning tree.
 
@@ -27,11 +28,12 @@ def is_transform_tree_root(model_utils: ModelUtils, module: Module) -> bool: # T
         bool: True if module can be treated as the root of a transform
             pruning tree, False otherwise.
     """
-    is_transform = is_transform_type(type(module))
-    is_not_excluded = not meets_exclusion_criteria(model_utils, module)
+    module_name = model_utils.module_to_name[module]
+    is_transform = is_transform_type(cfg, type(module))
+    is_not_excluded = not meets_exclusion_criteria(cfg, module, module_name)
     return is_transform and is_not_excluded
 
-def is_attention_tree_root(module: Module) -> bool:
+def is_attention_tree_root(cfg: ConfigProtocol, module: Module) -> bool:
     """Checks whether the given module can be treated as the root of an
     attention pruning tree.
 
@@ -42,9 +44,9 @@ def is_attention_tree_root(module: Module) -> bool:
         bool: True if module can be treated as the root of an attention
         pruning tree, False otherwise.
     """
-    return is_attention_type(type(module))
+    return is_attention_type(cfg, type(module))
 
-def collect_pruning_trees(model_utils: ModelUtils, iteration: int, save_path: str) -> list[tuple[float, PruningTree]]:
+def collect_pruning_trees(cfg: ConfigProtocol, model_utils: ModelUtils, iteration: int) -> list[tuple[float, PruningTree]]:
     """Enumerates and ranks all pruning trees in the model.
 
     Args:
@@ -61,15 +63,15 @@ def collect_pruning_trees(model_utils: ModelUtils, iteration: int, save_path: st
     tree_importances = []
     
     for module in model_utils.model.modules():
-        if is_transform_tree_root(model_utils, module):
-            pruning_tree = TransformPruningTree(model_utils, module)
+        if is_transform_tree_root(cfg, model_utils, module):
+            pruning_tree = TransformPruningTree(cfg, model_utils, module)
             importance = pruning_tree.get_importance()
             trees.append(pruning_tree)
             trees_as_str.append(str(pruning_tree))
             tree_importances.append(importance)
-        if is_attention_tree_root(module):
+        if is_attention_tree_root(cfg, module):
             attention_tree_generator = AttentionPruningTreeGenerator(module)
-            for pruning_tree in attention_tree_generator.get_trees(model_utils):
+            for pruning_tree in attention_tree_generator.get_trees(cfg, model_utils):
                 importance = pruning_tree.get_importance()
                 trees.append(pruning_tree)
                 trees_as_str.append(str(pruning_tree))
@@ -78,8 +80,8 @@ def collect_pruning_trees(model_utils: ModelUtils, iteration: int, save_path: st
     importances_and_tree_strs = sorted(zip(tree_importances, trees_as_str), key=lambda x: x[0])
     importances_and_trees = sorted(zip(tree_importances, trees), key=lambda x: x[0])
 
-    if save_path:
-        path_without_ext, ext = os.path.splitext(save_path)
+    if cfg.IMPORTANCES_SAVE_PATH:
+        path_without_ext, ext = os.path.splitext(cfg.IMPORTANCES_SAVE_PATH)
         path_with_iter_num = f"{path_without_ext}-iter{iteration + 1}{ext}"
         print(f"Saving groups and importances to {path_with_iter_num}")
         with open(f"{path_with_iter_num}", 'w', newline='') as file:
