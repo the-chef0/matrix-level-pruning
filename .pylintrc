@@ -1,0 +1,3 @@
+[MESSAGES CONTROL]
+# disable some overly-verbose checks
+disable=W0212,C0303,E0401
