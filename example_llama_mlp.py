@@ -42,15 +42,11 @@ tree_to_prune.prune()
 model_utils.build_module_name_mappings()
 model_utils.build_dependency_graph()
 
-IdentityPatcher(model_utils).patch()
+IdentityPatcher(cfg, model_utils).patch()
 print(model_utils.model)
 
 if cfg.EVALUATE:
     assert cfg.PRUNED_MODEL_SAVE_DIR is not None
     assert cfg.EVAL_RESULTS_PATH is not None
     
-    evaluate_pruned(
-        model_utils=model_utils,
-        pruned_model_save_dir=cfg.PRUNED_MODEL_SAVE_DIR,
-        eval_result_path=cfg.EVAL_RESULTS_PATH
-    )
+    evaluate_pruned(cfg, model_utils)

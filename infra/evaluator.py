@@ -15,8 +15,8 @@ def evaluate_pruned(cfg: ConfigProtocol, model_utils: ModelUtils):
         model = model_utils.model
         tokenizer = model_utils.tokenizer
     else:
-        model = torch.load(os.path.join(pruned_model_save_dir, "model.pth"), weights_only=False).cuda()
-        tokenizer = AutoTokenizer.from_pretrained(pruned_model_save_dir)
+        model = torch.load(os.path.join(cfg.PRUNED_MODEL_SAVE_DIR, "model.pth"), weights_only=False).to(cfg.DEVICE)
+        tokenizer = AutoTokenizer.from_pretrained(cfg.PRUNED_MODEL_SAVE_DIR)
 
     name = os.path.basename(cfg.PRUNED_MODEL_SAVE_DIR)
 

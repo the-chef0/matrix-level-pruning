@@ -3,13 +3,16 @@ from torch import nn
 from torch_pruning.dependency import Node
 from torch_pruning.ops import _ConcatOp, _ElementWiseOp
 
-from infra.utils.module_utils.identity_types import AdditiveIdentity, ConcatenativeIdentity, MultiplicativeIdentity
+from config.config_protocol import ConfigProtocol
+from infra.utils.module_utils.identity_types import AdditiveIdentity, ConcatenativeIdentity, \
+    MultiplicativeIdentity
 from infra.utils.model_utils import ModelUtils
 from infra.utils.dep_graph_utils.dep_graph_search_utils import get_param_subtree_singleton
 
 class IdentityPatcher:
 
-    def __init__(self, model_utils: ModelUtils):
+    def __init__(self, cfg: ConfigProtocol, model_utils: ModelUtils):
+        self.cfg = cfg
         self.model_utils = model_utils
         self.model_modules = set(model_utils.model.modules()) #TODO: move to model utils?
 
@@ -72,7 +75,7 @@ class IdentityPatcher:
                 print(f"Patching identity in {identity_module_name} with {arithmetic_identity_type.__name__}")
                 self.model_utils.replace_module_by_name(
                     module_name=identity_module_name,
-                    new_module=arithmetic_identity_type()
+                    new_module=arithmetic_identity_type(device=self.cfg.DEVICE)
                 )
 
     def adjust_concat_successor_dims(self, concat_node: Node):
@@ -84,7 +87,7 @@ class IdentityPatcher:
         pruner = self.model_utils.dep_graph.get_pruner_of_module(successor_module)
         setattr(concat_node, 'dependencies', [])
         successor_subtree_singleton = get_param_subtree_singleton(
-            model_utils=self.model_utils,
+            dep_graph=self.model_utils.dep_graph,
             module=successor_module,
             idxs=idxs,
             pruning_fn=pruner.prune_in_channels
@@ -106,7 +109,7 @@ class IdentityPatcher:
                     self.model_utils.replace_module_by_name(
                         model_utils=self.model_utils,
                         module_name=identity_module_name,
-                        new_module=ConcatenativeIdentity()
+                        new_module=ConcatenativeIdentity(device=self.cfg.DEVICE)
                     )
                 
                 self.adjust_concat_successor_dims(node)

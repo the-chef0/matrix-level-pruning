@@ -13,6 +13,7 @@ class MHAProjection(Enum):
 
 @runtime_checkable
 class ConfigProtocol(Protocol):
+    DEVICE: str
     MODEL: PreTrainedModel | Module
     TOKENIZER: PreTrainedTokenizer | None
     DUMMY_INPUT: torch.Tensor

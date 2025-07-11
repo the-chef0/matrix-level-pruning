@@ -10,9 +10,10 @@ from infra.utils.dep_graph_utils.custom_pruners import OperationPruner, RMSNormP
 
 @dataclass
 class Config(ConfigProtocol):
-    MODEL = AutoModelForCausalLM.from_pretrained('meta-llama/Llama-3.2-1B').to('cuda')
+    DEVICE = 'cuda'
+    MODEL = AutoModelForCausalLM.from_pretrained('meta-llama/Llama-3.2-1B').to(DEVICE)
     TOKENIZER = AutoTokenizer.from_pretrained('meta-llama/Llama-3.2-1B')
-    DUMMY_INPUT = MODEL.dummy_inputs['input_ids'].to('cuda')
+    DUMMY_INPUT = MODEL.dummy_inputs['input_ids'].to(DEVICE)
     IMPORTANCES_SAVE_PATH = './importances.csv'
     PRUNING_ITERATIONS = 1
     PRUNED_MODEL_SAVE_DIR = '/home/michal/hf-models/pruned'

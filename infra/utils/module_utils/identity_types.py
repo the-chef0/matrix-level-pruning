@@ -22,23 +22,26 @@ class IdentityWithGrad(nn.Identity):
 
 class AdditiveIdentity(nn.Identity):
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, device: str, *args: Any, **kwargs: Any) -> None:
         super().__init__()
+        self.device = device
 
     def forward(self, input: Tensor) -> Tensor:
-        return torch.zeros_like(input)
+        return torch.zeros_like(input).to(self.device)
 
 class MultiplicativeIdentity(nn.Identity):
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, device: str, *args: Any, **kwargs: Any) -> None:
         super().__init__()
+        self.device = device
 
     def forward(self, input: Tensor) -> Tensor:
-        return torch.ones_like(input)
+        return torch.ones_like(input).to(self.device)
 
 class ConcatenativeIdentity(nn.Identity):
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, device: str, *args: Any, **kwargs: Any) -> None:
         super().__init__()
+        self.device = device
 
     def forward(self, input: Tensor) -> Tensor:
-        return torch.empty(0).to('cuda') # TODO: parametrize device in config
+        return torch.empty(0).to(self.device) # TODO: parametrize device in config
