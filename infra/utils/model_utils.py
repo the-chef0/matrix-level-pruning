@@ -1,5 +1,3 @@
-from torch import nn, Tensor
-from torch.fx.experimental.proxy_tensor import make_fx
 from torch_pruning.dependency import DependencyGraph
 
 from config.config_protocol import ConfigProtocol
@@ -20,19 +18,23 @@ class ModelUtils:
         self.dep_graph_args['model'] = self.model
         self.dep_graph_args['customized_pruners'][IdentityWithGrad] = OperationPruner()
         self.dep_graph = None
-        self.dummy_input = cfg.DUMMY_INPUT
+        self.build_dependency_graph()
 
         self.module_to_name = None
         self.name_to_module = None
+        self.build_module_name_mappings()
         self.model_modules = None
+        self.initialize_module_set()
 
     def build_module_name_mappings(self):
+        print("(Re)building module - name mappings")
         self.module_to_name = {}
         for name, module in self.model.named_modules():
             self.module_to_name[module] = name
         self.name_to_module = {v: k for k, v in self.module_to_name.items()}
 
     def build_dependency_graph(self):
+        print("(Re)building dependency graph")
         self.dep_graph = DependencyGraph().build_dependency(**self.dep_graph_args)
 
     def initialize_module_set(self):

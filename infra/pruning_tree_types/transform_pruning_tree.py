@@ -1,3 +1,5 @@
+from typing import Callable
+
 import numpy as np
 from torch.nn import Module
 from torch_pruning.pruner.importance import GroupMagnitudeImportance
@@ -32,10 +34,11 @@ class TransformPruningTree(PruningTree):
     be removed along with it.
     """
     def __init__(self, cfg: ConfigProtocol, model_utils: ModelUtils, root_module: Module):
+        super().__init__(model_utils)
         self.cfg = cfg
         self.model_utils = model_utils
         self.dg_helper = DepGraphHelper(model_utils, root_module)
-        self.root_dim_low, self.root_dim_high = self.get_module_dims(root_module)
+        self.root_dim_low, self.root_dim_high = self.get_module_dims()
         self.dim_idxs = [i for i in range(self.root_dim_high)]
 
         self.param_subtree = model_utils.dep_graph.get_pruning_group(
@@ -51,14 +54,14 @@ class TransformPruningTree(PruningTree):
             self.param_subtree_deps = None
             
         root_module_node = model_utils.dep_graph.module2node[root_module]
-        self.op_subtree = list(get_op_subtree(cfg, root_module_node)) # TODO: rewrite this to get nodes and convert to modules using some fn in module_utils?
+        self.op_subtree = list(get_op_subtree(cfg, root_module_node))
         self.importance_fn = GroupMagnitudeImportance(normalizer=None)
         self.model_utils = model_utils
         
-        self.importance = None
+        self.importance = None # TODO: The logic surrounding this should not be needed anymore?
         self.dep_importance_ranking = None
 
-    def get_module_dims(self, module: Module):
+    def get_module_dims(self):
         root_dim_low = np.min([self.dg_helper.in_channels, self.dg_helper.out_channels])
         root_dim_high = np.max([self.dg_helper.in_channels, self.dg_helper.out_channels])
         return root_dim_low, root_dim_high
@@ -106,10 +109,11 @@ class TransformPruningTree(PruningTree):
         return modules
 
     def prune(self):
+        print(f"Pruning {self}")
         if self.param_subtree_deps:
             importance_ranking = self.get_dep_importance_ranking()
             num_channels_to_prune = self.root_dim_high - self.root_dim_low
-            idxs_to_prune = [idx for (importance, idx) in importance_ranking[:num_channels_to_prune]]
+            idxs_to_prune = [idx for (_, idx) in importance_ranking[:num_channels_to_prune]]
             self.param_subtree.prune(idxs_to_prune)
 
         root_module = self.get_root_module()
@@ -120,6 +124,8 @@ class TransformPruningTree(PruningTree):
         for op_module in operation_modules:
             op_module_name = self.model_utils.module_to_name[op_module]
             self.model_utils.replace_module_by_name(op_module_name, IdentityWithGrad())
+
+        self.call_post_prune_listeners()
 
     def __str__(self):
         root_module = self.get_root_module()

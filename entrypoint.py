@@ -19,18 +19,12 @@ for i in range(cfg.PRUNING_ITERATIONS):
     # but we know which modules changed in each pruning iteration.
     # It should suffice to just re-collect groups for the modules affected by pruning.
 
-    print("(Re)building module - name mappings")
-    model_utils.build_module_name_mappings()
-    print("(Re)building dependency graph")
-    model_utils.build_dependency_graph()
-
     importances_and_trees = collect_pruning_trees(
         cfg, model_utils,
         iteration=i,
     )
 
     _, tree_to_prune = importances_and_trees.pop(0)
-    print(f"Pruning group {tree_to_prune}")
     tree_to_prune.prune()
 
 model_utils.build_dependency_graph()

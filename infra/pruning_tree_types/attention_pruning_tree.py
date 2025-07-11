@@ -1,3 +1,5 @@
+from typing import Callable
+
 import numpy as np
 from torch.nn import Module
 import torch_pruning as tp
@@ -5,14 +7,16 @@ from torch_pruning.pruner.importance import GroupMagnitudeImportance
 
 from config.config_protocol import ConfigProtocol, MHAProjection
 from infra.pruning_tree_types.pruning_tree import PruningTree
-from infra.utils.dep_graph_utils.dep_graph_search_utils import get_op_subtree, get_param_subtree_singleton
+from infra.utils.dep_graph_utils.dep_graph_search_utils import get_op_subtree, \
+    get_param_subtree_singleton
 from infra.utils.model_utils import ModelUtils
 from infra.utils.module_utils.identity_types import IdentityWithGrad
 
 class AttentionPruningTree(PruningTree):
 
     def __init__(self,  cfg: ConfigProtocol, model_utils: ModelUtils, attention_module: Module, \
-                 qo_idxs: list, kv_idxs: list, dims_per_head: int):     
+                 qo_idxs: list, kv_idxs: list, dims_per_head: int):
+        super().__init__(model_utils)
         self.model_utils = model_utils
         self.module = attention_module
         self.importance_fn = GroupMagnitudeImportance(normalizer=None, group_reduction=None)
@@ -76,6 +80,7 @@ class AttentionPruningTree(PruningTree):
             + self.get_op_importance()
 
     def prune(self):
+        print(f"Pruning {self}")
         # Only pruning attention heads, not operations
         if self.op_subtree is None:
             for param_subtree_node in self.param_subtree:
@@ -90,6 +95,8 @@ class AttentionPruningTree(PruningTree):
             
             attention_module_name = self.model_utils.module_to_name[self.module]
             self.model_utils.replace_module_by_name(attention_module_name, IdentityWithGrad())
+
+        self.call_post_prune_listeners()
 
     def __str__(self):
         module_str = f"{self.model_utils.module_to_name[self.module]}\n"
