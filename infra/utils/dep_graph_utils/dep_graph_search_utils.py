@@ -48,7 +48,7 @@ def is_operation_prunable(cfg: ConfigProtocol, nonlinearity_node: Node, search_d
     
     return num_dependent_transforms(nonlinearity_node, search_direction) <= 1
 
-def get_operation_group(cfg: ConfigProtocol, module_node: Node) -> Set[Node]:
+def get_op_subtree(cfg: ConfigProtocol, module_node: Node) -> Set[Node]:
     depth_pruning_group = set()
     
     operation_nodes = find_adjacent_operation_nodes(

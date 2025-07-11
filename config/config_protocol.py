@@ -3,6 +3,14 @@ import torch
 from torch.nn import Module
 from transformers import PreTrainedModel, PreTrainedTokenizer
 
+from enum import Enum, auto
+
+class MHAProjection(Enum):
+    Q = auto()
+    K = auto()
+    V = auto()
+    O = auto()
+
 @runtime_checkable
 class ConfigProtocol(Protocol):
     MODEL: PreTrainedModel | Module
@@ -17,5 +25,5 @@ class ConfigProtocol(Protocol):
     BASE_TRANSFORM_TYPES: set[Module]
     TRANSFORM_EXCLUSION_KEYWORDS: set[str]
     BASE_ATTENTION_TYPES: set[Module]
-    ATTENTION_CHILD_KEYWORDS: set[str]
+    MHA_PROJECTION_NAME_MAPPING: dict[MHAProjection, str]
     BASE_OPERATION_TYPES: set[Module]

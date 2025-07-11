@@ -26,8 +26,7 @@ for i in range(cfg.PRUNING_ITERATIONS):
     model_utils.build_dependency_graph()
 
     importances_and_trees = collect_pruning_trees(
-        cfg,
-        model_utils,
+        cfg, model_utils,
         iteration=i,
     )
 

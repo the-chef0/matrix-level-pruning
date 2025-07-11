@@ -5,7 +5,7 @@ from torch_pruning.pruner.importance import GroupMagnitudeImportance
 from config.config_protocol import ConfigProtocol
 from infra.pruning_tree_types.pruning_tree import PruningTree
 from infra.utils.dep_graph_utils.dep_graph_helper import DepGraphHelper, DependencyDirection
-from infra.utils.dep_graph_utils.dep_graph_search_utils import get_operation_group
+from infra.utils.dep_graph_utils.dep_graph_search_utils import get_op_subtree
 from infra.utils.module_utils.pruning_tree_collection_utils import is_transform_type
 from infra.utils.module_utils.identity_types import IdentityWithGrad
 from infra.utils.model_utils import ModelUtils
@@ -51,7 +51,7 @@ class TransformPruningTree(PruningTree):
             self.param_subtree_deps = None
             
         root_module_node = model_utils.dep_graph.module2node[root_module]
-        self.op_subtree = list(get_operation_group(cfg, root_module_node)) # TODO: rewrite this to get nodes and convert to modules using some fn in module_utils?
+        self.op_subtree = list(get_op_subtree(cfg, root_module_node)) # TODO: rewrite this to get nodes and convert to modules using some fn in module_utils?
         self.importance_fn = GroupMagnitudeImportance(normalizer=None)
         self.model_utils = model_utils
         

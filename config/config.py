@@ -5,7 +5,7 @@ from torch.nn import modules
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.models.llama.modeling_llama import LlamaAttention, LlamaRMSNorm
 
-from config.config_protocol import ConfigProtocol
+from config.config_protocol import ConfigProtocol, MHAProjection
 from infra.utils.dep_graph_utils.custom_pruners import OperationPruner, RMSNormPruner
 
 @dataclass
@@ -38,12 +38,12 @@ class Config(ConfigProtocol):
     BASE_ATTENTION_TYPES = set([
         LlamaAttention,
     ])
-    ATTENTION_CHILD_KEYWORDS = set([
-        'q_proj',
-        'k_proj',
-        'v_proj',
-        'o_proj'
-    ])
+    MHA_PROJECTION_NAME_MAPPING = {
+        MHAProjection.Q: 'q_proj',
+        MHAProjection.K: 'k_proj',
+        MHAProjection.V: 'v_proj',
+        MHAProjection.O: 'o_proj'
+    }
     BASE_OPERATION_TYPES = set([
         nn.SiLU,
         nn.BatchNorm2d,

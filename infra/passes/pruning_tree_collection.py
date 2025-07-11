@@ -17,7 +17,8 @@ from infra.pruning_tree_types.attention_pruning_tree import AttentionPruningTree
 from infra.pruning_tree_types.pruning_tree import PruningTree
 from infra.pruning_tree_types.transform_pruning_tree import TransformPruningTree
 
-def is_transform_tree_root(cfg: ConfigProtocol, model_utils: ModelUtils, module: Module) -> bool: # TODO: move to module utils?
+def is_transform_tree_root(cfg: ConfigProtocol, model_utils: ModelUtils, \
+    module: Module) -> bool: # TODO: move to module utils?
     """Checks whether the given module can be treated as the root of a
     transform pruning tree.
 
@@ -64,14 +65,14 @@ def collect_pruning_trees(cfg: ConfigProtocol, model_utils: ModelUtils, iteratio
     
     for module in model_utils.model.modules():
         if is_transform_tree_root(cfg, model_utils, module):
-            pruning_tree = TransformPruningTree(cfg, model_utils, module)
+            pruning_tree = TransformPruningTree(cfg, model_utils, root_module=module)
             importance = pruning_tree.get_importance()
             trees.append(pruning_tree)
             trees_as_str.append(str(pruning_tree))
             tree_importances.append(importance)
         if is_attention_tree_root(cfg, module):
-            attention_tree_generator = AttentionPruningTreeGenerator(module)
-            for pruning_tree in attention_tree_generator.get_trees(cfg, model_utils):
+            attention_tree_generator = AttentionPruningTreeGenerator(cfg, attention_module=module)
+            for pruning_tree in attention_tree_generator.get_trees(model_utils):
                 importance = pruning_tree.get_importance()
                 trees.append(pruning_tree)
                 trees_as_str.append(str(pruning_tree))

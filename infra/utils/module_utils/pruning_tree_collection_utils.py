@@ -87,7 +87,7 @@ def contains_excluded_keyword(cfg: ConfigProtocol, module_name: str):
     return contains_excluded
 
 def is_attention_child(cfg: ConfigProtocol, module_name: str):
-    return any(kw in module_name for kw in cfg.ATTENTION_CHILD_KEYWORDS)
+    return any(kw in module_name for kw in cfg.MHA_PROJECTION_NAME_MAPPING.values())
 
 def is_feature_map_transforming_conv(module: Module, module_name: str):
     if issubclass(type(module), _ConvNd):
