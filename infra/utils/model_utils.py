@@ -19,11 +19,12 @@ class ModelUtils:
         self.dep_graph_args = cfg.DEP_GRAPH_ARGS
         self.dep_graph_args['model'] = self.model
         self.dep_graph_args['customized_pruners'][IdentityWithGrad] = OperationPruner()
-        self.dep_graph_args
         self.dep_graph = None
         self.dummy_input = cfg.DUMMY_INPUT
+
         self.module_to_name = None
         self.name_to_module = None
+        self.model_modules = None
 
     def build_module_name_mappings(self):
         self.module_to_name = {}
@@ -33,6 +34,9 @@ class ModelUtils:
 
     def build_dependency_graph(self):
         self.dep_graph = DependencyGraph().build_dependency(**self.dep_graph_args)
+
+    def initialize_module_set(self):
+        self.model_modules = set(self.model.modules())
 
     def replace_module_by_name(self, module_name, new_module):
         # Split the module name into parts

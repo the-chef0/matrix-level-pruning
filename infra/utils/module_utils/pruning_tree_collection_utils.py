@@ -94,7 +94,6 @@ def is_feature_map_transforming_conv(module: Module, module_name: str):
         num_dims = get_num_conv_dims(module)
         padding, dilation, kernel, stride = get_conv_params_per_dim(module, num_dims)
         is_feature_map_transforming = changes_feature_map_dims(
-            module=module,
             num_dims=num_dims,
             padding=padding,
             dilation=dilation,

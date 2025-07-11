@@ -1,14 +1,14 @@
-from typing import List, Set, Type
+from typing import List, Set
 
-from torch.nn import Linear, Module
+from torch.nn import Module, Identity
 from torch_pruning.dependency import DependencyGraph, Group, Node
+from torch_pruning.pruner.function import BasePruningFunc
 
 from config.config_protocol import ConfigProtocol
 from infra.utils.dep_graph_utils.dep_graph_helper import DependencyDirection
-from infra.utils.model_utils import ModelUtils
 from infra.utils.module_utils.pruning_tree_collection_utils import is_transform_type
 
-def get_adjacent_nodes(node: Node, search_direction: DependencyDirection) -> List[Module]:
+def get_adjacent_nodes(node: Node, search_direction: DependencyDirection) -> List[Node]:
     if search_direction == DependencyDirection.FORWARD:
         return node.outputs
     elif search_direction == DependencyDirection.BACKWARD:
@@ -16,7 +16,9 @@ def get_adjacent_nodes(node: Node, search_direction: DependencyDirection) -> Lis
     else:
         raise ValueError(f"Invalid search direction: {search_direction}")
     
-def find_adjacent_operation_nodes(cfg: ConfigProtocol, source_node: Node, search_direction: DependencyDirection, operation_nodes: Set[Node]) -> Set[Node]:
+def find_adjacent_op_nodes(cfg: ConfigProtocol, source_node: Node, \
+    search_direction: DependencyDirection, operation_nodes: Set[Node]) -> Set[Node]:
+
     branches = get_adjacent_nodes(source_node, search_direction)
     
     for branch_node in branches:
@@ -27,13 +29,15 @@ def find_adjacent_operation_nodes(cfg: ConfigProtocol, source_node: Node, search
             continue
         
         operation_nodes.union(
-            find_adjacent_operation_nodes(cfg, branch_node, search_direction, operation_nodes)
+            find_adjacent_op_nodes(cfg, branch_node, search_direction, operation_nodes)
         )
 
     return operation_nodes
 
-def is_operation_prunable(cfg: ConfigProtocol, nonlinearity_node: Node, search_direction: DependencyDirection) -> int:
-    def num_dependent_transforms(node, direction):
+def is_op_prunable(cfg: ConfigProtocol, op_node: Node, \
+    search_direction: DependencyDirection) -> bool:
+
+    def num_dependent_transforms(node: Node, direction: DependencyDirection) -> int:
         num_dependent_paths = 0
         if is_transform_type(cfg, type(node.module)):
             return 1
@@ -46,12 +50,30 @@ def is_operation_prunable(cfg: ConfigProtocol, nonlinearity_node: Node, search_d
         
         return num_dependent_paths
     
-    return num_dependent_transforms(nonlinearity_node, search_direction) <= 1
+    return num_dependent_transforms(op_node, search_direction) <= 1
+
+def find_nearest_nonid_module_node(source_node: Node, modules: set, \
+    search_direction: DependencyDirection) -> Node:
+
+    # TODO: There is a way to rewrite this without nested functions but I couldn't get it working
+    # and there are more important things to do
+    def recursive_case(node: Node):
+        branches = get_adjacent_nodes(node, search_direction)
+        for branch in branches:
+            if branch.module in modules and not isinstance(branch.module, Identity):
+                return branch
+            else:
+                return recursive_case(branch)
+            
+    if source_node.module in modules and not isinstance(source_node.module, Identity):
+        return source_node
+    else:
+        return recursive_case(source_node)
 
 def get_op_subtree(cfg: ConfigProtocol, module_node: Node) -> Set[Node]:
     depth_pruning_group = set()
     
-    operation_nodes = find_adjacent_operation_nodes(
+    operation_nodes = find_adjacent_op_nodes(
         cfg=cfg,
         source_node=module_node,
         search_direction=DependencyDirection.FORWARD,
@@ -59,12 +81,14 @@ def get_op_subtree(cfg: ConfigProtocol, module_node: Node) -> Set[Node]:
     )
 
     for node in operation_nodes:
-        if is_operation_prunable(cfg, node, DependencyDirection.BACKWARD):
+        if is_op_prunable(cfg, node, DependencyDirection.BACKWARD):
             depth_pruning_group.add(node)
 
     return depth_pruning_group
 
-def get_param_subtree_singleton(dep_graph: DependencyGraph, module: Module, idxs: list, pruning_fn):
+def get_param_subtree_singleton(dep_graph: DependencyGraph, module: Module, idxs: list, \
+    pruning_fn: BasePruningFunc) -> Group:
+
     full_subtree = dep_graph.get_pruning_group(module, pruning_fn, idxs)
     singleton_subtree = Group()
     setattr(singleton_subtree, '_group', full_subtree[:1])

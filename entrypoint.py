@@ -34,7 +34,7 @@ for i in range(cfg.PRUNING_ITERATIONS):
     tree_to_prune.prune()
 
 model_utils.build_dependency_graph()
-IdentityPatcher(model_utils).patch()
+IdentityPatcher(cfg, model_utils).patch()
 
 pruned_model_utils = model_utils
 

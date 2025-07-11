@@ -17,7 +17,7 @@ class Config(ConfigProtocol):
     IMPORTANCES_SAVE_PATH = './importances.csv'
     PRUNING_ITERATIONS = 1
     PRUNED_MODEL_SAVE_DIR = '/home/michal/hf-models/pruned'
-    EVALUATE = True
+    EVALUATE = False
     EVAL_RESULTS_PATH = './eval-results.json'
     DEP_GRAPH_ARGS = {
         'example_inputs': DUMMY_INPUT,

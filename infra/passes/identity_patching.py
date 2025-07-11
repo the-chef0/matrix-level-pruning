@@ -7,14 +7,16 @@ from config.config_protocol import ConfigProtocol
 from infra.utils.module_utils.identity_types import AdditiveIdentity, ConcatenativeIdentity, \
     MultiplicativeIdentity
 from infra.utils.model_utils import ModelUtils
-from infra.utils.dep_graph_utils.dep_graph_search_utils import get_param_subtree_singleton
+from infra.utils.dep_graph_utils.dep_graph_helper import DependencyDirection
+from infra.utils.dep_graph_utils.dep_graph_search_utils import find_nearest_nonid_module_node, \
+    get_param_subtree_singleton
 
 class IdentityPatcher:
 
     def __init__(self, cfg: ConfigProtocol, model_utils: ModelUtils):
         self.cfg = cfg
         self.model_utils = model_utils
-        self.model_modules = set(model_utils.model.modules()) #TODO: move to model utils?
+        self.model_utils.initialize_module_set()
 
         self.ARITHMETIC_TYPE_TO_IDENTITY_TYPE = {
             'AddBackward0': AdditiveIdentity,
@@ -31,33 +33,30 @@ class IdentityPatcher:
 
         return id_operand_nodes
 
-    # TODO: make a generalized dep graph DFS function to use both here and for operations?
-    # also there has got to be a less stupid way to do this than with the nested function
-    def get_nearest_predecessor_module_node(self, node: Node):
-        def recursive_case(node: Node):
-            for inp in node.inputs:
-                if inp.module in self.model_modules and not isinstance(inp.module, nn.Identity):
-                    return inp
-                else:
-                    return recursive_case(inp)
-
-        if node.module in self.model_modules and not isinstance(node.module, nn.Identity):
-            return node
-        else:
-            return recursive_case(node)
-
-    def get_nearest_successor_module_node(self, node: Node):
-        def recursive_case(node: Node):
-            for out in node.outputs:
-                if out.module in self.model_modules and not isinstance(out.module, nn.Identity):
-                    return out
-                else:
-                    return recursive_case(out)
-
-        if node.module in self.model_modules and not isinstance(node.module, nn.Identity):
-            return node
-        else:
-            return recursive_case(node)
+    def get_redundant_concat_idxs(self, concat_node: Node):
+        concat_sizes = concat_node.module.concat_sizes
+        end_idx = np.sum(concat_sizes[:-1])
+        return list(range(end_idx))
+    
+    def adjust_concat_successor_dims(self, concat_node: Node):
+        redundant_idxs = self.get_redundant_concat_idxs(concat_node)
+        successor_module_node = find_nearest_nonid_module_node(
+            source_node=concat_node,
+            modules=self.model_utils.model_modules,
+            search_direction=DependencyDirection.FORWARD
+        )
+        successor_module = successor_module_node.module
+        
+        pruner = self.model_utils.dep_graph.get_pruner_of_module(successor_module)
+        setattr(concat_node, 'dependencies', [])
+        successor_subtree_singleton = get_param_subtree_singleton(
+            dep_graph=self.model_utils.dep_graph,
+            module=successor_module,
+            idxs=redundant_idxs,
+            pruning_fn=pruner.prune_in_channels
+        )
+        
+        successor_subtree_singleton.prune()
 
     def patch_arithmetic_node_operands(self, node: Node, grad_fn_name: str):
         identity_operand_nodes = self.find_identity_operand_nodes(node.inputs)
@@ -66,8 +65,16 @@ class IdentityPatcher:
             fst_identity_module = identity_operand_nodes[0].module
             fst_operand = node.inputs[0]
             snd_operand = node.inputs[1]
-            fst_pred = self.get_nearest_predecessor_module_node(fst_operand)
-            snd_pred = self.get_nearest_predecessor_module_node(snd_operand)
+            fst_pred = find_nearest_nonid_module_node(
+                source_node=fst_operand,
+                modules=self.model_utils.model_modules,
+                search_direction=DependencyDirection.BACKWARD
+            )
+            snd_pred = find_nearest_nonid_module_node(
+                source_node=snd_operand,
+                modules=self.model_utils.model_modules,
+                search_direction=DependencyDirection.BACKWARD
+            )
 
             if fst_pred == snd_pred:
                 arithmetic_identity_type = self.ARITHMETIC_TYPE_TO_IDENTITY_TYPE[grad_fn_name]
@@ -78,29 +85,17 @@ class IdentityPatcher:
                     new_module=arithmetic_identity_type(device=self.cfg.DEVICE)
                 )
 
-    def adjust_concat_successor_dims(self, concat_node: Node):
-        concat_sizes = concat_node.module.concat_sizes
-        end_idx = np.sum(concat_sizes[:-1])
-        idxs = list(range(end_idx))
-
-        successor_module = self.get_nearest_successor_module_node(concat_node).module
-        pruner = self.model_utils.dep_graph.get_pruner_of_module(successor_module)
-        setattr(concat_node, 'dependencies', [])
-        successor_subtree_singleton = get_param_subtree_singleton(
-            dep_graph=self.model_utils.dep_graph,
-            module=successor_module,
-            idxs=idxs,
-            pruning_fn=pruner.prune_in_channels
-        )
-        successor_subtree_singleton.prune()
-
     def patch_concat_node_operands(self, node: Node):
         identity_operand_nodes = self.find_identity_operand_nodes(node.inputs)
         
         if identity_operand_nodes:
             predecessors = []
             for operand in node.inputs:
-                predecessors.append(self.get_nearest_predecessor_module_node(operand))
+                predecessors.append(find_nearest_nonid_module_node(
+                    source_node=operand,
+                    modules=self.model_utils.model_modules,
+                    search_direction=DependencyDirection.BACKWARD
+                ))
             
             if all(pred == predecessors[0] for pred in predecessors):
                 for id_operand_node in identity_operand_nodes[1:]:
