@@ -6,9 +6,10 @@ from lm_eval.models.huggingface import HFLM
 import torch
 from transformers import AutoTokenizer
 
+from config.config_protocol import ConfigProtocol
 from infra.utils.model_utils import ModelUtils
 
-def evaluate_pruned(model_utils: ModelUtils, pruned_model_save_dir: str, eval_result_path: str):
+def evaluate_pruned(cfg: ConfigProtocol, model_utils: ModelUtils):
     # Initialize the model and tokenizer
     if model_utils:
         model = model_utils.model
@@ -17,7 +18,7 @@ def evaluate_pruned(model_utils: ModelUtils, pruned_model_save_dir: str, eval_re
         model = torch.load(os.path.join(pruned_model_save_dir, "model.pth"), weights_only=False).cuda()
         tokenizer = AutoTokenizer.from_pretrained(pruned_model_save_dir)
 
-    name = os.path.basename(pruned_model_save_dir)
+    name = os.path.basename(cfg.PRUNED_MODEL_SAVE_DIR)
 
     llm = HFLM(
         pretrained=model,
@@ -33,5 +34,5 @@ def evaluate_pruned(model_utils: ModelUtils, pruned_model_save_dir: str, eval_re
         device="cuda",
     )
 
-    with open(eval_result_path, "w") as f:
+    with open(cfg.EVAL_RESULTS_PATH, "w") as f:
         json.dump(results['results'], f)

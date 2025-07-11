@@ -12,8 +12,7 @@ from infra.utils.module_utils.identity_types import IdentityWithGrad
 class AttentionPruningTree(PruningTree):
 
     def __init__(self,  cfg: ConfigProtocol, model_utils: ModelUtils, attention_module: Module, \
-                 qo_idxs: list, kv_idxs: list, dims_per_head: int):
-        
+                 qo_idxs: list, kv_idxs: list, dims_per_head: int):     
         self.model_utils = model_utils
         self.module = attention_module
         self.importance_fn = GroupMagnitudeImportance(normalizer=None, group_reduction=None)

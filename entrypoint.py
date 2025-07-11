@@ -3,7 +3,6 @@ import os
 import torch
 
 from config.config import Config as cfg
-from config.config_protocol import ConfigProtocol
 from infra.evaluator import evaluate_pruned
 from infra.passes.identity_patching import IdentityPatcher
 from infra.passes.pruning_tree_collection import collect_pruning_trees
@@ -49,7 +48,6 @@ if cfg.EVALUATE:
     assert cfg.EVAL_RESULTS_PATH is not None
     
     evaluate_pruned(
-        model_utils=pruned_model_utils,
-        pruned_model_save_dir=cfg.PRUNED_MODEL_SAVE_DIR,
-        eval_result_path=cfg.EVAL_RESULTS_PATH
+        cfg=cfg,
+        model_utils=pruned_model_utils
     )
