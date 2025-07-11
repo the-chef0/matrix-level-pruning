@@ -4,7 +4,7 @@ TODO:
  - [x] Fix attention head grouping algo
  - [x] Make naming in attention_pruning_tree consistent with transform_pruning_tree
  - [ ] Clean up identity_patcher, see if any dep_graph_search_utils functions can be repurposed
- - [ ] Use config object in eval
+ - [x] Use config object in eval
  - [ ] Write a usage guide
  - [ ] Finish docstrings
  - [ ] Make sure type hints are everywhere
