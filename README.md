@@ -6,23 +6,35 @@
 2. Configure settings in `config/config.py` (see [below](#configuration-fields) for more info)
 3. Run `python entrypoint.py`
 
-### Configuration fields (WIP)
+### Configuration
 
 See `config/config_protocol.py` for a definition of the configuration protocol and `config/config.py` for a concrete example.
 
-| Field                   | Required                            | Description                                                                                                                                 |
-|-------------------------|-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
-| `DEVICE`                | Yes                                 | The device to load the model onto.                                                                                                          |
-| `MODEL`                 | Yes                                 | The model to prune. Most PyTorch `nn.Module` objects should be supported, including subclasses like the HuggingFace `AutoModelForCausalLM`. |
-| `TOKENIZER`             | Only if `EVALUATE` is set to `True` | The tokenizer for the model.                                                                                                                |
-| `DUMMY_INPUT`           | Yes                                 | Any valid input into the model for tracing the computation graph.                                                                           |
-| `IMPORTANCES_SAVE_PATH` | No                                  | A path of the format `/path/to/file.csv` where to save the importance ranking of each identified pruning tree.                              |
-| `PRUNING_ITERATIONS`    | Yes                                 | The number of times to repeat the pruning tree collection pass (see [below](#how-it-works)).                                                |
-| `PRUNED_MODEL_SAVE_DIR` | No                                  | The location to save the pruned model to. If given as `/path/to/model`, the model will be saved under `/path/to/model/model.pth`.           |
-| `EVALUATE`              | No                                  | Whether to evaluate the pruned model (TODO: evaluation config).                                                                             |
-| `EVAL_RESULTS_PATH`     | No                                  | A path of the format `/path/to/file.csv' where to save the results of the evaluation.                                                       |
+| Field                          | Required                                      | Description                                                                                                                                                                         |
+|--------------------------------|-----------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `DEVICE`                       | Yes                                           | The device to load the model onto.                                                                                                                                                  |
+| `MODEL`                        | Yes                                           | The model to prune. Most PyTorch `nn.Module` objects should be supported, including subclasses like the HuggingFace `AutoModelForCausalLM`.                                         |
+| `TOKENIZER`                    | Only if `EVALUATE` is set to `True`           | The tokenizer for the model.                                                                                                                                                        |
+| `DUMMY_INPUT`                  | Yes                                           | Any valid input into the model for tracing the computation graph.                                                                                                                   |
+| `IMPORTANCES_SAVE_PATH`        | No                                            | A path of the format `/path/to/file.csv` where to save the importance ranking of each identified pruning tree.                                                                      |
+| `PRUNING_ITERATIONS`           | Yes                                           | The number of times to repeat the pruning tree collection pass (see [below](#how-it-works)).                                                                                        |
+| `PRUNED_MODEL_SAVE_DIR`        | No                                            | The location to save the pruned model to. If given as `/path/to/model`, the model will be saved under `/path/to/model/model.pth`.                                                   |
+| `EVALUATE`                     | No                                            | Whether to evaluate the pruned model (TODO: evaluation config).                                                                                                                     |
+| `EVAL_RESULTS_PATH`            | No                                            | A path of the format `/path/to/file.csv' where to save the results of the evaluation.                                                                                               |
+| `DEP_GRAPH_ARGS`               | Yes                                           | Look [here](#additional-notes-on-depgraph-arguments) for more info.                                                                                                                 |
+| `BASE_TRANSFORM_TYPES`         | Defaults in given config file likely reusable | Defines which module types should be considered transforms (see [the Pruning Tree data structure](#the-pruning-tree-data-structure)).                                               |
+| `TRANSFORM_EXCLUSION_KEYWORDS` | No                                            | (Sub)strings of variable names of transforms that should not be considered for pruning (e.g. embedding layers, classification heads...).                                            |
+| `BASE_ATTENTION_TYPES`         | Only in attention-based models                | Defines which module type(s) should be considered parent attention module(s).                                                                                                       |
+| `MHA_PROJECTION_NAME_MAPPING`  | Only in attention-based models                | A mapping determining which variable names the code should look for within the attention module(s) to identify the Q, K, V and O projections.                                       |
+| `BASE_OPERATION_TYPES`         | Yes                                           | Defines which modules types should be considered activation functions, normalization functions, etc. (see  [the Pruning Tree data structure](#the-pruning-tree-data-structure)). |
 
-#### Additional notes on dependency graph arguments (TODO)
+#### Additional notes on DepGraph arguments
+
+You will most likely need to specify the following arguments:
+ - `output_transform`: HuggingFace models often do not directly output the prediction logits, but a wrapper that also contains past KV data for caching and so on. The `output_transform` must be a callable that extracts the logits from whatever the model outputs.
+ - `customized_pruners`: Here you need specify which module types should be considered nodes in the DepGraph data structure. By default, it ignores activation and normalization modules.
+
+For more info, please see the [Torch-Pruning repo](https://github.com/VainF/Torch-Pruning/). To understand why this is required, see [Relevance of DepGraph](#relevance-of-depgraph).
 
 ## How it works (WIP)
 
@@ -68,7 +80,7 @@ A root has to be a *transform node* $(t^-, t^+)$ in $\mathcal{G}$, which we take
 
 Since the identity operation is dimension-preserving, we have $\textsf{dim}(\textsf{id}^-) = \textsf{dim}(\textsf{id}^+)$. This is not a problem if $\textsf{dim}(t^-) = \textsf{dim}(t^+)$, i.e. the layer contains a square parameter matrix that maps between spaces of equal dimensions. However, if $\textsf{dim}(t^-) \neq \textsf{dim}(t^+)$, we must consider the following:
 
-### Usage of the VainF/Torch-Pruning repo
+### Relevance of DepGraph
 
 # TODO
  - [x] Fix attention head grouping algo
