@@ -11,11 +11,12 @@ class ModelUtils:
     """
 
     def __init__(self, cfg: ConfigProtocol):
-        self.model = cfg.MODEL
+        self.model = cfg.MODEL.to(cfg.DEVICE)
         self.tokenizer = cfg.TOKENIZER
 
         self.dep_graph_args = cfg.DEP_GRAPH_ARGS
         self.dep_graph_args['model'] = self.model
+        self.dep_graph_args['example_inputs'] = cfg.DUMMY_INPUT.to(cfg.DEVICE)
         self.dep_graph_args['customized_pruners'][IdentityWithGrad] = OperationPruner()
         self.dep_graph = None
         self.build_dependency_graph()
