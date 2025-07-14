@@ -23,6 +23,7 @@ def is_transform_tree_root(cfg: ConfigProtocol, model_utils: ModelUtils, \
     transform pruning tree.
 
     Args:
+        cfg (ConfigProtocol): See class docstring.
         model_utils (ModelUtils): See class docstring.
         module (Module): The PyTorch module in question.
     Returns:
@@ -34,11 +35,12 @@ def is_transform_tree_root(cfg: ConfigProtocol, model_utils: ModelUtils, \
     is_not_excluded = not meets_exclusion_criteria(cfg, module, module_name)
     return is_transform and is_not_excluded
 
-def is_attention_tree_root(cfg: ConfigProtocol, module: Module) -> bool:
-    """Checks whether the given module can be treated as the root of an
+def is_attention_tree_parent(cfg: ConfigProtocol, module: Module) -> bool:
+    """Checks whether the given module can be treated as the parent of an
     attention pruning tree.
 
     Args:
+        cfg (ConfigProtocol): See class docstring.
         model_utils (ModelUtils): See class docstring.
         module (Module): The PyTorch module in question.
     Returns:
@@ -70,7 +72,7 @@ def collect_pruning_trees(cfg: ConfigProtocol, model_utils: ModelUtils, iteratio
             trees.append(pruning_tree)
             trees_as_str.append(str(pruning_tree))
             tree_importances.append(importance)
-        if is_attention_tree_root(cfg, module):
+        if is_attention_tree_parent(cfg, module):
             attention_tree_generator = AttentionPruningTreeGenerator(cfg, attention_module=module)
             for pruning_tree in attention_tree_generator.get_trees(model_utils):
                 importance = pruning_tree.get_importance()

@@ -13,9 +13,27 @@ from infra.utils.model_utils import ModelUtils
 from infra.utils.module_utils.identity_types import IdentityWithGrad
 
 class AttentionPruningTree(PruningTree):
-
+    """Each attention pruning tree covers all the coupled structures involved in
+    pruning one attention head. If h is the number of dimensions in one head,
+    then each tree consists of at least a parameter subtree of 4 nodes:
+    h rows of the Q, K and V projection matrices, and h columns of the O projection matrix.
+    If there is only one attention head remaining, there can also be an operation
+    subtree consisting of any operations after the attention module that have
+    no other inputs.
+    """
     def __init__(self,  cfg: ConfigProtocol, model_utils: ModelUtils, attention_module: Module, \
                  qo_idxs: list, kv_idxs: list, dims_per_head: int):
+        """
+        Args:
+            cfg (ConfigProtocol): See class docstring.
+            model_utils (ModelUtils): See class docstring.
+            attention_module (Module): The parent module containing this attention head.
+            qo_idxs (list): A list of indices corresponding to the rows of the Q head
+                grouping and the columns on the O projection matrix pertaining to this
+                attention head.
+            kv_idxs (list): A list of indices corresponding to the rows of the K/V projection
+                matrices pertaining to this attention head.
+        """
         super().__init__(model_utils)
         self.model_utils = model_utils
         self.module = attention_module
@@ -23,11 +41,16 @@ class AttentionPruningTree(PruningTree):
         self.qo_idxs = qo_idxs
         self.kv_idxs = kv_idxs
 
+        # Use the Q, K, V and O projection variable names as defined in the config to
+        # obtain the relevant modules from the attention parent module.
         q_proj = getattr(attention_module, cfg.MHA_PROJECTION_NAME_MAPPING[MHAProjection.Q])
         k_proj = getattr(attention_module, cfg.MHA_PROJECTION_NAME_MAPPING[MHAProjection.K])
         v_proj = getattr(attention_module, cfg.MHA_PROJECTION_NAME_MAPPING[MHAProjection.V])
         o_proj = getattr(attention_module, cfg.MHA_PROJECTION_NAME_MAPPING[MHAProjection.O])
 
+        # The parameter subtree is defined here and consists of 4 Torch-Pruning Group objects,
+        # each encapsulating the information to prune one head from each of the projection
+        # matrices.
         q_singleton = get_param_subtree_singleton(
             dep_graph=model_utils.dep_graph,
             module=q_proj,
@@ -111,20 +134,37 @@ class AttentionPruningTree(PruningTree):
         return module_str + kv_str + qo_str + operation_str
 
 class AttentionPruningTreeGenerator:
+    """Takes care of generating attention pruning trees, since each tree is
+    parameterized by by indices that define the rows/columns corresponding
+    to the given head in the Q, K, V and O weight matrices.
+    With MHA, there are always at most as many K and V heads as there are
+    Q heads. For MQA/GQA, we need to know which K and V heads correspond
+    to which groups of Q heads.
+    """
     def __init__(self, cfg: ConfigProtocol, attention_module: Module):
         self.cfg = cfg
 
+        # Use the Q, K, V and O projection variable names as defined in the config to
+        # obtain the relevant modules from the attention parent module.
         q_proj = getattr(attention_module, cfg.MHA_PROJECTION_NAME_MAPPING[MHAProjection.Q])
         k_proj = getattr(attention_module, cfg.MHA_PROJECTION_NAME_MAPPING[MHAProjection.K])
         self.module = attention_module
 
+        # Many HuggingFace attention implementations rely on this config attribute so
+        # hopefully it generalizes.
         self.dims_per_head = self.module.config.hidden_size // self.module.config.num_attention_heads
         self.num_kv_heads = k_proj.out_features // self.dims_per_head
         num_q_heads = q_proj.out_features // self.dims_per_head
+        # In the case of MQA/GQA, we need to know how many Q heads map to one K/V head
         self.num_q_groups = num_q_heads // self.num_kv_heads
+        # If one head has length e.g. 64 and there are 4 Q heads per K/V head,
+        # then one group of Q heads is 256 long.
         self.dims_per_q_group = self.num_q_groups * self.dims_per_head
 
     def get_trees(self, model_utils: ModelUtils):
+        # Generate attention trees and their indices by incrementing the
+        # head index and offsetting the dimensions per Q group and K/V head
+        # based on the head index.
         for head_idx in range(self.num_kv_heads):
             kv_start_idx = head_idx * self.dims_per_head
             kv_end_idx = (head_idx + 1) * self.dims_per_head

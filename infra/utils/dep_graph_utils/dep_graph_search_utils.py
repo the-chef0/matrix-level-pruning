@@ -71,7 +71,7 @@ def find_nearest_nonid_module_node(source_node: Node, modules: set, \
         return recursive_case(source_node)
 
 def get_op_subtree(cfg: ConfigProtocol, module_node: Node) -> Set[Node]:
-    depth_pruning_group = set()
+    op_subtree = set()
     
     operation_nodes = find_adjacent_op_nodes(
         cfg=cfg,
@@ -82,9 +82,9 @@ def get_op_subtree(cfg: ConfigProtocol, module_node: Node) -> Set[Node]:
 
     for node in operation_nodes:
         if is_op_prunable(cfg, node, DependencyDirection.BACKWARD):
-            depth_pruning_group.add(node)
+            op_subtree.add(node)
 
-    return depth_pruning_group
+    return op_subtree
 
 def get_param_subtree_singleton(dep_graph: DependencyGraph, module: Module, idxs: list, \
     pruning_fn: BasePruningFunc) -> Group:
