@@ -3,8 +3,10 @@
 ## Usage guide
 
 1. Clone this repo
-2. Configure settings in `config/config.py` (see [below](#configuration-fields) for more info)
+2. Configure settings in `config/config.py` (see [below](#configuration) for more info)
 3. Run `python entrypoint.py`
+
+To understand how the code is structured, see [Package structure](#package-structure). To understand how that translates to a higher, coneptual leve, see [What it does](#what-it-does).
 
 ### Configuration
 
@@ -15,16 +17,16 @@ See `config/config_protocol.py` for a definition of the configuration protocol a
 | `DEVICE`                       | Yes                                           | The device to load the model onto.                                                                                                                                                  |
 | `MODEL`                        | Yes                                           | The model to prune. Most PyTorch `nn.Module` objects should be supported, including subclasses like the HuggingFace `AutoModelForCausalLM`.                                         |
 | `TOKENIZER`                    | Only if `EVALUATE` is set to `True`           | The tokenizer for the model.                                                                                                                                                        |
-| `DUMMY_INPUT`                  | Yes                                           | Any valid input into the model for tracing the computation graph.                                                                                                                   |
-| `IMPORTANCES_SAVE_PATH`        | No                                            | A path of the format `/path/to/file.csv` where to save the importance ranking of each identified pruning tree.                                                                      |
-| `PRUNING_ITERATIONS`           | Yes                                           | The number of times to repeat the pruning tree collection pass (see [below](#how-it-works)).                                                                                        |
+| `DUMMY_INPUT`                  | Yes                                           | Any valid input into the model for tracing the computation graph (see [Why the DepGraph dependency?](#why-the-depgraph-dependency)).                                                                                                                   |
+| `IMPORTANCES_SAVE_PATH`        | No                                            | A path of the format `/path/to/file.csv` where to save the importance ranking of each identified pruning tree (see [What it does](#what-it-does)).                                                                      |
+| `PRUNING_ITERATIONS`           | Yes                                           | The number of times to repeat the pruning tree collection pass (see [Putting it all together](#putting-it-all-together)).                                                                                        |
 | `PRUNED_MODEL_SAVE_DIR`        | No                                            | The location to save the pruned model to. If given as `/path/to/model`, the model will be saved under `/path/to/model/model.pth`.                                                   |
 | `EVALUATE`                     | No                                            | Whether to evaluate the pruned model (TODO: evaluation config).                                                                                                                     |
 | `EVAL_RESULTS_PATH`            | No                                            | A path of the format `/path/to/file.csv' where to save the results of the evaluation.                                                                                               |
 | `DEP_GRAPH_ARGS`               | Yes                                           | Look [here](#additional-notes-on-depgraph-arguments) for more info.                                                                                                                 |
 | `BASE_TRANSFORM_TYPES`         | Defaults in given config file likely reusable | Defines which module types should be considered transforms (see [the Pruning Tree data structure](#the-pruning-tree-data-structure)).                                               |
 | `TRANSFORM_EXCLUSION_KEYWORDS` | No                                            | (Sub)strings of variable names of transforms that should not be considered for pruning (e.g. embedding layers, classification heads...).                                            |
-| `BASE_ATTENTION_TYPES`         | Only in attention-based models                | Defines which module type(s) should be considered parent attention module(s).                                                                                                       |
+| `BASE_ATTENTION_TYPES`         | Only in attention-based models                | Defines which module type(s) should be considered parent attention module(s) (see [the Pruning Tree data structure](#the-pruning-tree-data-structure)).                                                                                                     |
 | `MHA_PROJECTION_NAME_MAPPING`  | Only in attention-based models                | A mapping determining which variable names the code should look for within the attention module(s) to identify the Q, K, V and O projections.                                       |
 | `BASE_OPERATION_TYPES`         | Yes                                           | Defines which modules types should be considered activation functions, normalization functions, etc. (see  [the Pruning Tree data structure](#the-pruning-tree-data-structure)). |
 
@@ -34,53 +36,97 @@ You will most likely need to specify the following arguments:
  - `output_transform`: HuggingFace models often do not directly output the prediction logits, but a wrapper that also contains past KV data for caching and so on. The `output_transform` must be a callable that extracts the logits from whatever the model outputs.
  - `customized_pruners`: Here you need specify which module types should be considered nodes in the DepGraph data structure. By default, it ignores activation and normalization modules.
 
-For more info, please see the [Torch-Pruning repo](https://github.com/VainF/Torch-Pruning/). To understand why this is required, see [Relevance of DepGraph](#relevance-of-depgraph).
+For more info, please see the [Torch-Pruning repo](https://github.com/VainF/Torch-Pruning/). To understand why this is required, see [Why the DepGraph Dependency?](#why-the-depgraph-dependency).
 
-## How it works (WIP)
+## Package structure
 
-### The core idea
+The code uses two simultaneous representations of the model and switches between them for different purposes. The table below describes how the code is organized to reflect this.
 
-The goal of this work is to optimize the latency of a a model defined in PyTorch by pruning redundant nodes in its computation graph $\mathcal{G}$. On an implementation level, this is done by analyzing the model through its DepGraph representation and modifying it on the level of its PyTorch module structure, such that once the model is compiled for inference (using ONNX or Torch Export), the redundant computations do not take place.
+| Package                       | Description                                                                                                                                                                               |
+|-------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `root`                        | Contains the entrypoint file and example files.                                                                                                                                           |
+| `config`                      | Contains the configuration protocol definition, the main config file, and the config files pertaining to the examples.                                                                    |
+| `infra`                       | Contains all the logic.                                                                                                                                                                   |
+| `infra/passes`                | Defines the passes (see [What it does](#what-it-does)).                                                                                                                                   |
+| `infra/pruning_tree_types`    | Defines the data structures used for pruning (see [The pruning tree data structure](#the-pruning-tree-data-structure)).                                                                   |
+| `infra/utils/dep_graph_utils` | Contains helper functions and classes that operate primarily on the DepGraph representation of the model (see [Why the DepGraph dependency?](#why-the-depgraph-dependency)).              |
+| `infra/utils/module_utils`    | Contains helper functions and classes that operate primarily on the PyTorch Module representation of the model.                                                                           |
+| `infra/utils/model_utils.py`  | Defines a class that encapsulates the DepGraph representation of the model, the PyTorch Module representation of the model, and manages interoperability between the two representations. |
 
-### Notational preliminaries
+## What it does
 
-Borrowing notation from DepGraph, we decompose a network $\mathcal{F}(x;w)$ into a set of components $\mathcal{F} = \{ f_1, f_2, ..., f_L \}$ where each component refers to either a parametrized layer such as a linear layer or a convolution, or a non-parametrized operation such as an activation function or a residual addition. Then, we denote the input and output of component $f_i$ as $f_i^{-}$ and $f_i^{+}$ respectively.
+(This section describes the concepts with minimal mathematical formality. The formal version will probably end up in the thesis report rather than here.)
 
-In a deviation from the notation in DepGraph, we represent the network $\mathcal{F}$ as a directed computation graph $\mathcal{G}$, where
- - **Nodes** are tuples $(f_i^{-}, f_i^{+})$.
- - **Edges** order the sequence of dependent operations. An edge $(f_i^{-}, f_i^{+}) \rightarrow (f_j^{-}, f_j^{+})$ exists if computing $f_j$ requires as an operand the immediate result of computing $f_i$.
+At the time of writing this, state-of-the-art LLM pruning works by removing (depth-pruning) transformer/attention/MLP layers that are deemed unimportant by some metric. This leads to a reduction in memory footprint, but importantly, it also leads to reduced inference latency which is crucial for deployment at scale. Compared to structured and unstructured pruning which saves on latency by reducing memory accesses, this SOTA depth pruning of entire transformer/attention/MLP layers saves on latency by skipping these computations entirely. However, taking these large composite blocks to be the pruning units yields a relatively small search space. My work expands this search space by zooming in on the finest level on which this idea of "skipping computations entirely" applies.
 
-For example, an MLP structure can be represented as 
+The main functionality consists of several iterations of the *pruning tree collection* pass and one *identity patching pass*
 
+### The pruning tree data structure
+
+A pruning tree consists of a *parameter subtree* and an *operation subtree*. The root of each tree is either a *transform layer* - meaning linear layer or convolution layer (see [`BASE_TRANSFORM_TYPES`](#configuration)) - or an attention head (see [`BASE_ATTENTION_TYPES`](#configuration)). The root is the primary object to prune to avoid the latency associated with computing it, and the rest of the tree consists of objects that need to removed along with it.
+
+#### Transform layers
+
+For a tree rooted at a transform layer, the parameter subtree contains the root and includes rows/columns of parameter matrices that need to be adjusted to make sure we don't break the dimensions of the model once the root is removed.
+
+For example, if a linear layer $l$ has input dimension 2048 and output dimension 2048, we can remove it without dimension conflicts because the inputs into the root produce a representation of size 2048, and the layers that come after the root also expect an input of size 2048.
+
+However, if the linear layer has e.g. input dimension 2048 and output dimension 4096, this no longer works. The layer $l+1$ that comes after the root expects an input of size 4096, but by removing the root, the input passes directly through and retains its size of 2048. To fix this, we *width-prune* this dependency, i.e. remove columns from the parameter matrix (corresponding to input dimensions) of $l+1$. By width-pruning 2048 columns, $l+1$ becomes able to accept an input of size 2048. **Overall, the parameter subtree consists of the root $l$, and as a dimensional dependency, the 2048 least important columns in the parameter matrix of $l+1$.** The case of a linear layer that reduces dimensions rather than expands is analogous.
+
+Lastly, the operation subtree consists of any activation functions, normalization functions and other such operations that are coupled to the root. "Coupled to the root" means they only receive an input from the root. 
+
+Everything collected in the tree is considered for removal. The parameter subtree contains the root, which is the primary unit of computation we want to get rid of (and also save on memory by removing its parameters), along with dependent rows/columns in adjacent parameter matrices. The operation subtree consists of functions that we no longer need once the root is removed, so we can remove them too for a small, additional latency boost.
+
+#### Attention heads
+
+For a tree rooted at an attention head $i$, the parameter subtree consists of rows in the Q, K and V projection matrices, and columns in the O projection matrix, that correspond to attention head $i$. There is no need for dimensional dependencies in the subtree, because contrary to what I was able to find in the literature, it is possible to prune attention heads without breaking dimensions in other parts of the model.
+
+Briefly, multihead attention can be formalized as:
 ```math
-(\textsf{Linear}_i^{-}, \textsf{Linear}_i^{+}) \rightarrow (\textsf{ReLU}_i^{-}, \textsf{ReLU}_i^{+}) \rightarrow (\textsf{Linear}_{i+1}^{-}, \textsf{Linear}_{i+1}^{+}) \rightarrow (\textsf{ReLU}_{i+1}^{-}, \textsf{ReLU}_{i+1}^{+}) \rightarrow (\textsf{Linear}_{i+2}^{-}, \textsf{Linear}_{i+2}^{+})
+\text{MultiHead}(\mathbf{Q}, \mathbf{K}, \mathbf{V}) = \text{Concat}(\text{head}_1, ..., \text{head}_h) \mathbf{W}^O
 ```
+We reduce the number of heads by width-pruning rows of the Q, K and V projection matrices. This reduces the dimension of the result of the concat operation, so then, we width-prune the columns of the O projection matrix to adapt it to the new input dimension. The rest of the model remains unaffected because the output dimension of the O projection matrix stays the same.
 
-Now, DepGraph describes the notion of *inter-layer dependencies* $f_i^+ \Leftrightarrow f_j^-$. With our computation graph formulation, this arises in connected layers where $(f_i^{-}, f_i^{+}) \rightarrow (f_j^{-}, f_j^{+})$. 
+The operation subtree for trees rooted at attention heads exists only if the root is the last remaining head in the attention layer (all others have been pruned). Otherwise, the other attention heads still depend on the operations being there.
 
-In the above example, there exist inter-layer dependencies $\textsf{Linear}_i^{+} \Leftrightarrow \textsf{ReLU}_{i}^{-}$ and $\textsf{ReLU}_{i}^{+} \Leftrightarrow \textsf{Linear}_{i+1}^{-}$. To formalize why this is the case, let us define a dimension function $\textsf{dim} : \mathcal{F} \longrightarrow \mathbb{N}^+$ that maps each component in $\mathcal{F}$ to the size of its representation dimension. In the case of linear layers, this refers to the size of the hidden dimension. In the context of convolution layers, this refers to the size of the channel dimension. In general, the following holds:
+With attention heads, the idea of "skipping computations" does not manifest itself until we can remove the final attention head in an attention layer, thereby removing the entire layer. However, to the best of my knowledge, only my work can prune heads in a precise way that doesn't require dimension adjustments in other parts of the model. Additionally, by pruning heads, we can still improve latency by reducing memory access and shrinking the KV cache.
 
+### Identity patching
+
+Suppose your model contains some element-wise arithmetic operations, e.g. a gated MLP block. Let us formalize this as:
 ```math
-(f_i^{-}, f_i^{+}) \rightarrow (f_j^{-}, f_j^{+}) \implies \textsf{dim}(f_i^+) = \textsf{dim}(f_j^-)
+\textsf{SiLU}(\mathbf{X} \mathbf{W}^G) * \mathbf{X} \mathbf{W}^U
 ```
+Now suppose we prune out a tree containing $\mathbf{W}^G$ and $\textsf{SiLU}$, and a tree containing $\mathbf{W}^U$. This results in
+```math
+\textsf{id}(\textsf{id}(\mathbf{X})) * \textsf{id}(\mathbf{X}) = \mathbf{X} * \mathbf{X}
+```
+where $\textsf{id}$ is an identity operation that just copies the input to the output. By pruning the above layers and operations, we've created an unnecessary multiplication-by-self. The identity patching pass gets rid of these situations to save on a bit more latency.
 
-In other words, if the result of computing $f_i$ is directly used an operand for computing $f_j$, then the output size of $f_i$ must match the input size of $f_j$.
+Since the element-wise arithmetic operation in question is a multiplication, the identity patcher replaces one of the identity function operands with a function that simply returns the multiplicative identity element - an all-ones tensor with a compatible shape:
+```math
+\textsf{id}(\textsf{id}(\mathbf{X})) * \mathbf{1} = \mathbf{X}
+```
+When compiling the model for inference, the compiler will likely detect these redundant identity operations and the redundant multiplication and optimize them away.
 
-### Algorithm overview
+### Putting it all together
 
-### The Pruning Tree data structure
+With both passes described in detail, we can look at an overview of the top-level functionality:
 
-A pruning tree consists of
- - a parameter subtree
- - and an operation subtree.
+1. Do a pruning tree collection pass - obtain one tree per transform layer and attention head as a root.
+2. Measure the total importance of each tree.
+3. Prune out the least important tree.
+4. If the target parameter count reduction has not yet been reached, go to 1. Otherwise go to 5.
+5. Do an identity patching pass.
 
-In most cases, the parameter subtree will have a root. 
+The model will then be ready for fine-tuning, compilation for inference, and other downstream tasks.
 
-A root has to be a *transform node* $(t^-, t^+)$ in $\mathcal{G}$, which we take to mean a **linear layer** or a **convolution layer**. The goal is to prune $(t^-, t^+)$ by replacing it with an identity operation to turn the node into $(\textsf{id}_t^-, \textsf{id}_t^+)$.
+### Why the DepGraph dependency?
+Much of the code is built on top of the [Torch-Pruning repo](https://github.com/VainF/Torch-Pruning/), which implements the DepGraph data structure. Torch-Pruning is a structured, width pruning implementation, and the DepGraph data structure is used to answer the following question: "If I adjust the input/output dimension of a layer by width-pruning its parameter matrix, what dimension-dependent parameters in other layers do I also have to prune?"
 
-Since the identity operation is dimension-preserving, we have $\textsf{dim}(\textsf{id}^-) = \textsf{dim}(\textsf{id}^+)$. This is not a problem if $\textsf{dim}(t^-) = \textsf{dim}(t^+)$, i.e. the layer contains a square parameter matrix that maps between spaces of equal dimensions. However, if $\textsf{dim}(t^-) \neq \textsf{dim}(t^+)$, we must consider the following:
+In my implementation, pruning the root of a transform pruning tree is implemented as replacing it with an identity function, which is equivalent on a dimensional level to changing the layer's output dimension to be equal to its input dimension. The DepGraph helps identify the affected, dimension-dependent layers.
 
-### Relevance of DepGraph
+Additionally, Torch-Pruning creates this DepGraph data structure by traversing the PyTorch Autograd graph. This provided a convenient computation graph representation of the model that I used to identify operations that belong in pruning trees, identify redundant arithmetic operations and so on.
 
 # TODO
  - [x] Fix attention head grouping algo
