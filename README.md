@@ -6,7 +6,7 @@
 2. Configure settings in `config/config.py` (see [below](#configuration) for more info)
 3. Run `python entrypoint.py`
 
-To understand how the code is structured, see [Package structure](#package-structure). To understand how that translates to a higher, coneptual leve, see [What it does](#what-it-does).
+To understand how the code is structured, see [Package structure](#package-structure). To understand how that translates to a higher, conceptual level, see [What it does](#what-it-does).
 
 ### Configuration
 
