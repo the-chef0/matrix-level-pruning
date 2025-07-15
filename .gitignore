@@ -4,3 +4,4 @@ Torch-Pruning/
 runs/
 *.json
 *.csv
+formalizing.md
