@@ -8,6 +8,16 @@
 
 To understand how the code is structured, see [Package structure](#package-structure). To understand how that translates to a higher, conceptual level, see [What it does](#what-it-does).
 
+### Examples
+
+To see an example, run `python [example_filename].py`.
+
+| File                   | Description                                                                                                                                                         |
+|------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `example_llama_mlp.py` | Demonstrates 2 pruning iterations in Llama3 1B that also create a redundant multiplication situation to demonstrate artithmetic identity patching.               |
+| `example_mobilenet.py` | Demonstrates 5 pruning iterations in MobileNetV2 to demonstrate applicability to general PyTorch models, not just HuggingFace LMs.                                  |
+| `example_concat.py`    | Demonstrates 3 pruning iterations in an invented example model that also create a redundant concatenation situation to demonstrate concatenative identity patching. |
+
 ### Configuration
 
 See `config/config_protocol.py` for a definition of the configuration protocol and `config/config.py` for a concrete example.

@@ -39,6 +39,7 @@ print(g)
 g.prune()
 
 IdentityPatcher(cfg, model_utils).patch()
+print(model_utils.model)
 
 pruned_model_utils = model_utils
 
