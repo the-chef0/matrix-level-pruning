@@ -1,11 +1,11 @@
-import os
+from dataclasses import dataclass
 
 import torch
 from torch import nn
+from torch.nn import modules
 
-from infra.chain_collector import collect_groups
+from config.config_protocol import ConfigProtocol
 from infra.utils.dep_graph_utils.custom_pruners import OperationPruner
-from infra.utils.model_utils import ModelUtils
 
 def dwise_conv(ch_in, stride=1):
     return (
@@ -107,56 +107,34 @@ class MobileNetV2(nn.Module):
         x = self.classifier(x)
         return x
 
-MODEL = MobileNetV2().to('cuda')
-TOKENIZER = None
-IMPORTANCES_SAVE_PATH = './importances.csv'
-PRUNING_ITERATIONS = 1
-PRUNED_MODEL_SAVE_DIR = None
-EVALUATE = False
-EVAL_RESULTS_PATH = './eval-results.json'
-DEP_GRAPH_ARGS = {
-    'example_inputs': torch.rand(1,3,512,512).to('cuda'),
-    'customized_pruners': {
-        nn.ReLU6: OperationPruner(),
+@dataclass
+class Config(ConfigProtocol):
+    DEVICE = 'cuda'
+    MODEL = MobileNetV2()
+    TOKENIZER = None
+    DUMMY_INPUT = torch.rand(1,3,256,256)
+    IMPORTANCES_SAVE_PATH = './importances.csv'
+    PRUNING_ITERATIONS = 5
+    PRUNED_MODEL_SAVE_DIR = None
+    EVALUATE = False
+    EVAL_RESULTS_PATH = None
+    DEP_GRAPH_ARGS = {
+        'customized_pruners': {
+            nn.ReLU6: OperationPruner()
+        }
     }
-}
-
-model_utils = ModelUtils(
-    model=MODEL,
-    tokenizer=TOKENIZER,
-    dep_graph_args=DEP_GRAPH_ARGS
-)
-print("Model loaded")
-print(MODEL)
-
-assert PRUNING_ITERATIONS >= 0
-for i in range(PRUNING_ITERATIONS):
-    print(f"Iteration {i + 1}")
-    # TODO: Make this more efficient
-    # Every iteration after the first re-collects groups for the entire model,
-    # but we know which modules changed in each pruning iteration.
-    # It should suffice to just re-collect groups for the modules affected by pruning.
-
-    print("(Re)building module - name mappings")
-    model_utils.build_module_name_mappings()
-    print("(Re)building dependency graph")
-    model_utils.build_dependency_graph()
-
-    importances_and_groups = collect_groups(
-        model_utils,
-        iteration=i,
-        save_path=IMPORTANCES_SAVE_PATH
-    )
-
-    _, group_to_prune = importances_and_groups.pop(0)
-    print(f"Pruning group {group_to_prune}")
-    group_to_prune.prune()
-
-model_utils.build_dependency_graph()
-
-pruned_model_utils = model_utils
-
-if PRUNED_MODEL_SAVE_DIR:
-    pruned_model_utils.tokenizer.save_pretrained(PRUNED_MODEL_SAVE_DIR)
-    torch.save(pruned_model_utils.model, os.path.join(PRUNED_MODEL_SAVE_DIR, "model.pth"))
-    print(f"Saved pruned model to {PRUNED_MODEL_SAVE_DIR}")
+    BASE_TRANSFORM_TYPES = set([
+        modules.Linear,
+        modules.conv._ConvNd
+    ])
+    TRANSFORM_EXCLUSION_KEYWORDS = set([
+        'last_conv',
+        'classifier'
+    ])
+    BASE_ATTENTION_TYPES = set([])
+    MHA_PROJECTION_NAME_MAPPING = {}
+    BASE_OPERATION_TYPES = set([
+        nn.ReLU6,
+        nn.BatchNorm2d,
+        nn.AdaptiveAvgPool2d
+    ])

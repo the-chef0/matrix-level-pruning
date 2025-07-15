@@ -2,7 +2,7 @@ import os
 
 import torch
 
-from config.config import Config as cfg
+from config.config_example_mobilenet import Config as cfg
 from infra.evaluator import evaluate_pruned
 from infra.passes.identity_patching import IdentityPatcher
 from infra.passes.pruning_tree_collection import collect_pruning_trees
@@ -27,7 +27,6 @@ for i in range(cfg.PRUNING_ITERATIONS):
     _, tree_to_prune = importances_and_trees.pop(0)
     tree_to_prune.prune()
 
-model_utils.build_dependency_graph()
 IdentityPatcher(cfg, model_utils).patch()
 
 pruned_model_utils = model_utils

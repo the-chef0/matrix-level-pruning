@@ -156,8 +156,8 @@ class IdentityPatcher:
                 for id_operand_node in identity_operand_nodes[1:]:
                     identity_module = id_operand_node.module
                     identity_module_name = self.model_utils.module_to_name[identity_module]
+                    print(f"Patching identity in {identity_module_name} with {ConcatenativeIdentity.__name__}")
                     self.model_utils.replace_module_by_name(
-                        model_utils=self.model_utils,
                         module_name=identity_module_name,
                         new_module=ConcatenativeIdentity(device=self.cfg.DEVICE)
                     )

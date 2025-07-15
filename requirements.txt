@@ -81,7 +81,7 @@ torch==2.7.1
 torch-pruning @ git+ssh://git@github.com/the-chef0/Torch-Pruning.git@6ca5595d5cb4366d2d8f11ae6879fc4b61b9727d
 tqdm==4.67.1
 tqdm-multiprocess==0.0.11
-transformers @ git+ssh://git@github.com/the-chef0/transformers.git@551b812e5187bfd80c8b487e48e6f662a9b59398
+transformers
 triton==3.3.1
 typepy==1.3.4
 typing_extensions==4.14.0

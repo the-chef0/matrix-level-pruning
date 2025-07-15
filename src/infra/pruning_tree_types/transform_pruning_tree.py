@@ -136,7 +136,7 @@ class TransformPruningTree(PruningTree):
             operation_str += f"{op.module}\n"
 
         chain_modules = self.get_dep_modules()
-        chain_str = "Dimension dependency chain:\n"
+        chain_str = "Dimension dependencies:\n"
         for module in chain_modules:
             chain_str += f"{self.model_utils.module_to_name[module]}\n"
 
