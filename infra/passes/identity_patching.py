@@ -12,6 +12,20 @@ from infra.utils.dep_graph_utils.dep_graph_search_utils import find_nearest_noni
     get_param_subtree_singleton
 
 class IdentityPatcher:
+    """
+    Handles situations where, due to pruning, an element-wise arithmetic
+    operation or a concat operation receives all identical operands.
+
+    For example, before pruning there might be
+    SiLU(gate_proj(x)) * up_proj(x)
+    and after pruning it becomes
+    id(id(x)) * id(x) = x * x.
+
+    This pass can turn it into something like
+    id(id(x)) * 1 = x,
+    and from there, a model compiler will likely optimize away
+    the redundant multiplication when compiling for inference.
+    """
 
     def __init__(self, cfg: ConfigProtocol, model_utils: ModelUtils):
         self.cfg = cfg
@@ -24,7 +38,16 @@ class IdentityPatcher:
         }
         self.ARITHMETIC_TYPE_NAMES = set(self.ARITHMETIC_TYPE_TO_IDENTITY_TYPE.keys())
 
-    def find_identity_operand_nodes(self, operands: list[Node]):
+    def find_identity_operand_nodes(self, operands: list[Node]) -> list[Node]:
+        """Given a list of operands (inputs) in an arithmetic node, extracts the ones that
+        are linked to a module of the nn.Identity type.
+
+        Args:
+            operands (list[Node]): The list of operands/inputs
+        Returns:
+            list[Node]: A subset of operand nodes that are linked to a module of the
+                nn.Identity type.
+        """
         id_operand_nodes = []
 
         for op_node in operands:
@@ -33,12 +56,28 @@ class IdentityPatcher:
 
         return id_operand_nodes
 
-    def get_redundant_concat_idxs(self, concat_node: Node):
+    def get_redundant_concat_idxs(self, concat_node: Node) -> list[int]:
+        """Given a concat node with all identical inputs, returns a list of
+        indexes that cover all but the last input component of the resulting tensor.
+
+        Args:
+            concat_node (Node): A concat node with all identical inputs.
+        Returns:
+            list[int]: A list of indexes covering all but the last component of the
+                concatenated tensor.
+        """
         concat_sizes = concat_node.module.concat_sizes
         end_idx = np.sum(concat_sizes[:-1])
         return list(range(end_idx))
     
-    def adjust_concat_successor_dims(self, concat_node: Node):
+    def adjust_concat_successor_dims(self, concat_node: Node) -> None:
+        """Given a concat node with all identical inputs, prunes the input
+        dimension of all successor nodes so that they can take only one
+        of the inputs.
+
+        Args:
+            concat_node (Node): A concat node with all identical inputs.
+        """
         redundant_idxs = self.get_redundant_concat_idxs(concat_node)
         successor_module_node = find_nearest_nonid_module_node(
             source_node=concat_node,
@@ -58,13 +97,22 @@ class IdentityPatcher:
         
         successor_subtree_singleton.prune()
 
-    def patch_arithmetic_node_operands(self, node: Node, grad_fn_name: str):
-        identity_operand_nodes = self.find_identity_operand_nodes(node.inputs)
+    def patch_arithmetic_node_operands(self, arithmetic_node: Node, grad_fn_name: str) -> None:
+        """Checks if an arithmetic node has both identical operands,
+        either directly or via identity nodes, and if it does,
+        replaces one of them with the appropriate arithmetic identity element.
+        
+        Args:
+            arithmetic_node (Node): An arithmetic operation node.
+            grad_fn_name (str): The name of the node's Autograd gradient function
+                to determine what kind of operation it is.
+        """
+        identity_operand_nodes = self.find_identity_operand_nodes(arithmetic_node.inputs)
 
         if identity_operand_nodes:
             fst_identity_module = identity_operand_nodes[0].module
-            fst_operand = node.inputs[0]
-            snd_operand = node.inputs[1]
+            fst_operand = arithmetic_node.inputs[0]
+            snd_operand = arithmetic_node.inputs[1]
             fst_pred = find_nearest_nonid_module_node(
                 source_node=fst_operand,
                 modules=self.model_utils.model_modules,
@@ -85,12 +133,19 @@ class IdentityPatcher:
                     new_module=arithmetic_identity_type(device=self.cfg.DEVICE)
                 )
 
-    def patch_concat_node_operands(self, node: Node):
-        identity_operand_nodes = self.find_identity_operand_nodes(node.inputs)
+    def patch_concat_node_operands(self, concat_node: Node) -> None:
+        """Checks if a concat node has all identical operands,
+        either directly or via identity nodes, and if it does,
+        replaces all but one with a concatenative identity element.
+
+        Args:
+            concat_node (Node): A concat operation node.
+        """
+        identity_operand_nodes = self.find_identity_operand_nodes(concat_node.inputs)
         
         if identity_operand_nodes:
             predecessors = []
-            for operand in node.inputs:
+            for operand in concat_node.inputs:
                 predecessors.append(find_nearest_nonid_module_node(
                     source_node=operand,
                     modules=self.model_utils.model_modules,
@@ -107,9 +162,13 @@ class IdentityPatcher:
                         new_module=ConcatenativeIdentity(device=self.cfg.DEVICE)
                     )
                 
-                self.adjust_concat_successor_dims(node)
+                self.adjust_concat_successor_dims(concat_node)
 
     def patch(self):
+        """Finds all artithmetic operation nodes and concat operation nodes
+        in the DepGraph representation of the model and applies their
+        corresponding patching functions.
+        """
         all_nodes = self.model_utils.dep_graph.module2node.values()
         for node in all_nodes:
             if isinstance(node.module, _ElementWiseOp):
