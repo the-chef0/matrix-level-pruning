@@ -134,10 +134,10 @@ Additionally, Torch-Pruning creates this DepGraph data structure by traversing t
  - [x] Clean up identity_patcher, see if any dep_graph_search_utils functions can be repurposed
  - [x] Use config object in eval
  - [ ] Improve defaults in provided config file
- - [ ] Write a usage guide
+ - [x] Write a usage guide
  - [ ] Finish docstrings
  - [ ] Make sure type hints are everywhere
- - [ ] Update examples
+ - [x] Update examples
  - [x] Make sure everything in dep_graph_search_utils takes args on the dep graph level and returns types on the dep graph level
  - [x] Parametrize device in config
  - [x] Make a pruning listener that rebuilds data structures in model_utils every time something is pruned
