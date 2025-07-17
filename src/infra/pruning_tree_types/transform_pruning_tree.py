@@ -49,12 +49,20 @@ class TransformPruningTree(PruningTree):
         self.param_subtree_root = self.param_subtree[:1]
 
         if self.dg_helper.direction != DependencyDirection.NOT_APPLICABLE:
+            # Formulate as a list of singleton Group() objects if channel dimensions become
+            # a problem.
             self.param_subtree_deps = self.param_subtree[1:]
         else:
             self.param_subtree_deps = None
             
         root_module_node = model_utils.dep_graph.module2node[root_module]
         self.op_subtree = list(get_op_subtree(cfg, root_module_node))
+        # Unlike in attention_pruning_tree, the group_reduction arg in GroupMagnitudeImportance
+        # is left as the default 'mean', which means it calculates channel importances separately
+        # for each dep in param_subtree_deps and calculates the mean. This assumes that each dep
+        # has the same number of channels to prune. This might become a problem if there are
+        # ever dependencies via a concat or other shape changing node. If this happens, see the
+        # comment above the param_subtree_deps definition.
         self.importance_fn = GroupMagnitudeImportance(normalizer=None)
         self.model_utils = model_utils
         
@@ -77,22 +85,24 @@ class TransformPruningTree(PruningTree):
         if self.param_subtree_deps is not None:
             dep_importance_ranking = self.get_dep_importance_ranking()
             importances_ranked = [importance for (importance, idx) in dep_importance_ranking]
-            return np.sum(importances_ranked[:self.root_dim_low])
+            return np.mean(importances_ranked[:self.root_dim_low])
         else:
             return 0
 
     def get_root_importance(self):
         importance = self.importance_fn(self.param_subtree_root).cpu().numpy()
-        return np.sum(importance)
+        return np.mean(importance)
 
     def get_op_importance(self):
         return 0
 
     def get_importance(self):
         if self.importance is None:
-            self.importance = self.get_root_importance() + \
-                self.get_op_importance() + \
+            self.importance = np.mean([
+                self.get_root_importance(),
+                self.get_op_importance(),
                 self.get_dep_importance()
+            ])
             
         return self.importance
 

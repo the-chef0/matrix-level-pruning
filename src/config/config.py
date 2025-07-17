@@ -14,7 +14,7 @@ class Config(ConfigProtocol):
     MODEL = AutoModelForCausalLM.from_pretrained('meta-llama/Llama-3.2-1B')
     TOKENIZER = AutoTokenizer.from_pretrained('meta-llama/Llama-3.2-1B')
     DUMMY_INPUT = MODEL.dummy_inputs['input_ids']
-    IMPORTANCES_SAVE_PATH = None
+    IMPORTANCES_SAVE_PATH = './importances.csv'
     TARGET_SPARSITY = 0.01
     PRUNED_MODEL_SAVE_DIR = '/home/michal/hf-models/pruned'
     EVALUATE = False

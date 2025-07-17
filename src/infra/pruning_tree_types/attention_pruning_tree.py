@@ -90,17 +90,19 @@ class AttentionPruningTree(PruningTree):
     
     def get_param_subtree_importance(self):
         param_subtree_importances = [
-            np.sum(self.importance_fn(param_subtree_node).cpu().numpy())
+            np.mean(self.importance_fn(param_subtree_node).cpu().numpy())
             for param_subtree_node in self.param_subtree
         ]
-        return np.sum(param_subtree_importances)
+        return np.mean(param_subtree_importances)
     
     def get_op_importance(self):
         return 0
     
     def get_importance(self):
-        return self.get_param_subtree_importance() \
-            + self.get_op_importance()
+        return np.mean([
+            self.get_param_subtree_importance(),
+            self.get_op_importance()
+        ])
 
     def prune(self):
         print(f"Pruning {self}")

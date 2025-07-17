@@ -29,10 +29,12 @@ def evaluate_pruned(cfg: ConfigProtocol, model_utils: ModelUtils):
     results = lm_eval.simple_evaluate( # call simple_evaluate
         model=llm,
         model_args=name,
-        tasks=["hellaswag"],
+        tasks=["hellaswag","piqa"],#["hellaswag"],
         batch_size=16,
         device="cuda",
     )
+
+    print(results)
 
     with open(cfg.EVAL_RESULTS_PATH, "w") as f:
         json.dump(results['results'], f)

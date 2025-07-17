@@ -6,6 +6,7 @@ from config.config import Config as cfg
 from infra.evaluator import evaluate_pruned
 from infra.passes.identity_patching import IdentityPatcher
 from infra.passes.pruning_tree_collection import collect_pruning_trees
+from infra.pruning_tree_types.transform_pruning_tree import TransformPruningTree
 from infra.utils.model_utils import ModelUtils
 
 model_utils = ModelUtils(cfg)
@@ -16,9 +17,14 @@ importances_and_trees = collect_pruning_trees(
     iteration=0,
 )
 
-_, tree_to_prune = importances_and_trees[130]
-print(tree_to_prune)
-tree_to_prune.prune()
+for imp_and_tree in importances_and_trees:
+    _, tree = imp_and_tree
+    
+    if isinstance(tree, TransformPruningTree):
+        root_module = tree.get_root_module()
+        if model_utils.module_to_name[root_module] == 'model.layers.6.mlp.up_proj':
+            tree.prune()
+            break
 
 importances_and_trees = collect_pruning_trees(
     cfg,
@@ -26,9 +32,14 @@ importances_and_trees = collect_pruning_trees(
     iteration=1,
 )
 
-_, tree_to_prune = importances_and_trees[129]
-print(tree_to_prune)
-tree_to_prune.prune()
+for imp_and_tree in importances_and_trees:
+    _, tree = imp_and_tree
+    
+    if isinstance(tree, TransformPruningTree):
+        root_module = tree.get_root_module()
+        if model_utils.module_to_name[root_module] == 'model.layers.6.mlp.gate_proj':
+            tree.prune()
+            break
 
 IdentityPatcher(cfg, model_utils).patch()
 print(model_utils.model)

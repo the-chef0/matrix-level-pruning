@@ -7,6 +7,7 @@ from config.config_example_concat import Config as cfg
 from infra.evaluator import evaluate_pruned
 from infra.passes.identity_patching import IdentityPatcher
 from infra.passes.pruning_tree_collection import collect_pruning_trees
+from infra.pruning_tree_types.transform_pruning_tree import TransformPruningTree
 from infra.utils.model_utils import ModelUtils
 
 model_utils = ModelUtils(cfg)
@@ -16,27 +17,45 @@ importances_and_trees = collect_pruning_trees(
     model_utils,
     iteration=0,
 )
-_, g = importances_and_trees[2]
-print(g)
-g.prune()
+
+for imp_and_tree in importances_and_trees:
+    _, tree = imp_and_tree
+    
+    if isinstance(tree, TransformPruningTree):
+        root_module = tree.get_root_module()
+        if model_utils.module_to_name[root_module] == 'conv2a':
+            tree.prune()
+            break
 
 importances_and_trees = collect_pruning_trees(
     cfg,
     model_utils,
     iteration=1,
 )
-_, g = importances_and_trees[1]
-print(g)
-g.prune()
+
+for imp_and_tree in importances_and_trees:
+    _, tree = imp_and_tree
+    
+    if isinstance(tree, TransformPruningTree):
+        root_module = tree.get_root_module()
+        if model_utils.module_to_name[root_module] == 'conv2b':
+            tree.prune()
+            break
 
 importances_and_trees = collect_pruning_trees(
     cfg,
     model_utils,
     iteration=2,
 )
-_, g = importances_and_trees[0]
-print(g)
-g.prune()
+
+for imp_and_tree in importances_and_trees:
+    _, tree = imp_and_tree
+    
+    if isinstance(tree, TransformPruningTree):
+        root_module = tree.get_root_module()
+        if model_utils.module_to_name[root_module] == 'conv2c':
+            tree.prune()
+            break
 
 IdentityPatcher(cfg, model_utils).patch()
 print(model_utils.model)
