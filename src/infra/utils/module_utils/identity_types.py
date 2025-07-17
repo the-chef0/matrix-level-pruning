@@ -6,7 +6,7 @@ from torch import nn, Tensor
 class IdentityFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input):
-        return input
+        return input.clone()
 
     @staticmethod
     def backward(ctx, grad_output):
