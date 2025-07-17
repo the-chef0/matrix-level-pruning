@@ -15,9 +15,9 @@ To see an example, run `python [example_filename].py`.
 
 | File                   | Description                                                                                                                                                         |
 |------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `example_llama_mlp.py` | Demonstrates 2 pruning iterations in Llama3 1B that also create a redundant multiplication situation to demonstrate artithmetic identity patching.               |
-| `example_mobilenet.py` | Demonstrates 5 pruning iterations in MobileNetV2 to demonstrate applicability to general PyTorch models, not just HuggingFace LMs.                                  |
-| `example_concat.py`    | Demonstrates 3 pruning iterations in an invented example model that also create a redundant concatenation situation to demonstrate concatenative identity patching. |
+| `example_llama_mlp.py` | Demonstrates pruning Llama3 1B in hand-picked way that also create a redundant multiplication situation to demonstrate artithmetic identity patching.               |
+| `example_mobilenet.py` |Pruning MobileNetV2 to 20% sparsity to demonstrate applicability to general PyTorch models, not just HuggingFace LMs.                                  |
+| `example_concat.py`    | Demonstrates pruning an invented example model in a hand-picked way that also create a redundant concatenation situation to demonstrate concatenative identity patching. |
 
 ### Configuration
 
@@ -30,7 +30,7 @@ See `config/config_protocol.py` for a definition of the configuration protocol a
 | `TOKENIZER`                    | Only if `EVALUATE` is set to `True`, otherwise can be `None`           | The tokenizer for the model.                                                                                                                                                        |
 | `DUMMY_INPUT`                  | Yes                                           | Any valid input into the model for tracing the computation graph (see [Why the DepGraph dependency?](#why-the-depgraph-dependency)).                                                                                                                   |
 | `IMPORTANCES_SAVE_PATH`        | Can be `None`                                            | A path of the format `/path/to/file.csv` where to save the importance ranking of each identified pruning tree (see [What it does](#what-it-does)).                                                                      |
-| `PRUNING_ITERATIONS`           | Yes                                           | The number of times to repeat the pruning tree collection pass (see [Putting it all together](#putting-it-all-together)).                                                                                        |
+| `TARGET_SPARSITY`           | Yes                                           | A real number between 0 and 1 guiding how many times to repeat the pruning tree collection pass before the target sparsity is reached or exceeded (see [Putting it all together](#putting-it-all-together)).                                                                                     |
 | `PRUNED_MODEL_SAVE_DIR`        | Yes                                            | The location to save the pruned model to. If given as `/path/to/model`, the model will be saved under `/path/to/model/model.pth`.                                                   |
 | `EVALUATE`                     | Can be `None`                                            | Whether to evaluate the pruned model (TODO: evaluation config).                                                                                                                     |
 | `EVAL_RESULTS_PATH`            | Yes                                            | A path of the format `/path/to/file.csv' where to save the results of the evaluation.                                                                                               |
