@@ -1,3 +1,4 @@
+from itertools import count
 import os
 
 import torch
@@ -11,8 +12,11 @@ from infra.utils.model_utils import ModelUtils
 model_utils = ModelUtils(cfg)
 print("Model loaded")
 
-assert cfg.PRUNING_ITERATIONS >= 0
-for i in range(cfg.PRUNING_ITERATIONS):
+curr_sparsity = 0
+iter = count()
+assert cfg.TARGET_SPARSITY > 0 and cfg.TARGET_SPARSITY < 1
+while curr_sparsity < cfg.TARGET_SPARSITY:
+    i = next(iter)
     print(f"Iteration {i + 1}")
     # TODO: Make this more efficient
     # Every iteration after the first re-collects groups for the entire model,
@@ -26,6 +30,8 @@ for i in range(cfg.PRUNING_ITERATIONS):
 
     _, tree_to_prune = importances_and_trees.pop(0)
     tree_to_prune.prune()
+    curr_sparsity = model_utils.get_sparsity()
+    print(f"Current sparsity: {curr_sparsity}, target sparsity {cfg.TARGET_SPARSITY}")
 
 IdentityPatcher(cfg, model_utils).patch()
 print(model_utils.model)

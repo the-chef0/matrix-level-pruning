@@ -18,7 +18,7 @@ class ConfigProtocol(Protocol):
     TOKENIZER: PreTrainedTokenizer | None
     DUMMY_INPUT: torch.Tensor
     IMPORTANCES_SAVE_PATH: str | None
-    PRUNING_ITERATIONS: int
+    TARGET_SPARSITY: float
     PRUNED_MODEL_SAVE_DIR: str | None
     EVALUATE: bool
     EVAL_RESULTS_PATH: str | None

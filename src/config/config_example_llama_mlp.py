@@ -15,7 +15,7 @@ class Config(ConfigProtocol):
     TOKENIZER = AutoTokenizer.from_pretrained('meta-llama/Llama-3.2-1B')
     DUMMY_INPUT = MODEL.dummy_inputs['input_ids']
     IMPORTANCES_SAVE_PATH = './importances.csv'
-    PRUNING_ITERATIONS = 3
+    TARGET_SPARSITY = 0.1
     PRUNED_MODEL_SAVE_DIR = '/home/michal/hf-models/pruned'
     EVALUATE = False
     EVAL_RESULTS_PATH = './eval-results.json'

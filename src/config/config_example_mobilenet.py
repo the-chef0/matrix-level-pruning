@@ -114,7 +114,7 @@ class Config(ConfigProtocol):
     TOKENIZER = None
     DUMMY_INPUT = torch.rand(1,3,256,256)
     IMPORTANCES_SAVE_PATH = './importances.csv'
-    PRUNING_ITERATIONS = 5
+    TARGET_SPARSITY = 0.2
     PRUNED_MODEL_SAVE_DIR = None
     EVALUATE = False
     EVAL_RESULTS_PATH = None

@@ -27,6 +27,8 @@ class ModelUtils:
         self.model_modules = None
         self.initialize_module_set()
 
+        self.default_param_count = self.get_param_count()
+
     def build_module_name_mappings(self):
         print("(Re)building module - name mappings")
         self.module_to_name = {}
@@ -52,3 +54,9 @@ class ModelUtils:
         
         # Replace the module
         setattr(parent, parts[-1], new_module)
+
+    def get_param_count(self):
+        return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+    
+    def get_sparsity(self):
+        return 1 - (self.get_param_count() / self.default_param_count)
