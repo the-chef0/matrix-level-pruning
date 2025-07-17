@@ -113,7 +113,7 @@ class Config(ConfigProtocol):
     MODEL = MobileNetV2()
     TOKENIZER = None
     DUMMY_INPUT = torch.rand(1,3,256,256)
-    IMPORTANCES_SAVE_PATH = './importances.csv'
+    IMPORTANCES_SAVE_PATH = None
     TARGET_SPARSITY = 0.2
     PRUNED_MODEL_SAVE_DIR = None
     EVALUATE = False
