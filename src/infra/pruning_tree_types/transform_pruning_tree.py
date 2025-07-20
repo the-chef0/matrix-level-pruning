@@ -37,19 +37,32 @@ class TransformPruningTree(PruningTree):
         super().__init__(model_utils)
         self.cfg = cfg
         self.model_utils = model_utils
+        # Helps keep track of where to look for dimension dependencies based on the in/out channel
+        # relationship, and what type of node it is in the DepGraph (linear/conv).
         self.dg_helper = DepGraphHelper(model_utils, root_module)
         self.root_dim_low, self.root_dim_high = self.get_module_dims()
         self.dim_idxs = [i for i in range(self.root_dim_high)]
 
+        # Obtain a DepGraph Group instance that models which parameters have dimension
+        # dependencies on the root module, i.e. tells us which matrices need to be width-pruned
+        # to reconcile dimensions after replacing the root with an identity.
         self.param_subtree = model_utils.dep_graph.get_pruning_group(
             module=root_module,
             pruning_fn=self.dg_helper.fn,
             idxs=self.dim_idxs
         )
+        # Treat the root as a separate object because it will treated differently than the
+        # dependencies
         self.param_subtree_root = self.param_subtree[:1]
 
+        # If the root has a square matrix, we don't need a "direction" that the dependencies are in.
+        # If the root e.g. maps from a higher to lower dimensional space and we prune it, we need to
+        # adjust dimensions in the forward directions because the following layers were expecting 
+        # the smaller input.
         if self.dg_helper.direction != DependencyDirection.NOT_APPLICABLE:
-            # Formulate as a list of singleton Group() objects if channel dimensions become
+            # The remainder of the Group object contains the dependent layers, and we isolate
+            # those as the dependency part of the parameter subtree.
+            # Formulate as a list of singleton Group objects if channel dimensions become
             # a problem.
             self.param_subtree_deps = self.param_subtree[1:]
         else:
@@ -70,11 +83,24 @@ class TransformPruningTree(PruningTree):
         self.dep_importance_ranking = None
 
     def get_module_dims(self):
+        """Differentiates between and extracts the lower channel dimension and the higher channel
+        dimension of the transform.
+
+        Returns:
+            int: The lower channel dimension.
+            int: The higher channel dimension.
+        """
         root_dim_low = np.min([self.dg_helper.in_channels, self.dg_helper.out_channels])
         root_dim_high = np.max([self.dg_helper.in_channels, self.dg_helper.out_channels])
         return root_dim_low, root_dim_high
 
     def get_dep_importance_ranking(self):
+        """If the tree contains dimension dependencies, ranks the selected channels by importance.
+
+        Returns:
+            list[float, int]:A list of tuples sorted in ascending order on the first element,
+                importance, and the second element is the index of the channel.
+        """
         if self.dep_importance_ranking is None:
             importance = self.importance_fn(self.param_subtree_deps).cpu().numpy()
             all_channel_idxs = [i for i in range(self.root_dim_high)]
@@ -120,16 +146,21 @@ class TransformPruningTree(PruningTree):
 
     def prune(self):
         print(f"Pruning {self}")
+        # If there are dimension dependencies, we first use the built in DepGraph width pruning
+        # functionality to get the dimensions in order.
         if self.param_subtree_deps:
             importance_ranking = self.get_dep_importance_ranking()
             num_channels_to_prune = self.root_dim_high - self.root_dim_low
             idxs_to_prune = [idx for (_, idx) in importance_ranking[:num_channels_to_prune]]
             self.param_subtree.prune(idxs_to_prune)
 
+        # With the dimensions adjusted, it is now safe to prune the root by replacing it with an
+        # identity module.
         root_module = self.get_root_module()
         root_module_name = self.model_utils.module_to_name[root_module]
         self.model_utils.replace_module_by_name(root_module_name, IdentityWithGrad())
-
+        
+        # Operations coupled to the root (operation subtree) can also be pruned, if any.
         operation_modules = [node.module for node in self.op_subtree]
         for op_module in operation_modules:
             op_module_name = self.model_utils.module_to_name[op_module]

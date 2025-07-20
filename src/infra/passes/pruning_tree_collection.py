@@ -66,12 +66,16 @@ def collect_pruning_trees(cfg: ConfigProtocol, model_utils: ModelUtils, iteratio
     tree_importances = []
     
     for module in model_utils.model.modules():
+        # Transform pruning trees are rooted at transform types that conform to certain critera
+        # defined in the config and checked by this method.
         if is_transform_tree_root(cfg, model_utils, module):
             pruning_tree = TransformPruningTree(cfg, model_utils, root_module=module)
             importance = pruning_tree.get_importance()
             trees.append(pruning_tree)
             trees_as_str.append(str(pruning_tree))
             tree_importances.append(importance)
+        # Attention pruning trees are generated per head by an AttentionPruningTreeGenerator
+        # initiated from the parent attention module
         if is_attention_tree_parent(cfg, module):
             attention_tree_generator = AttentionPruningTreeGenerator(cfg, attention_module=module)
             for pruning_tree in attention_tree_generator.get_trees(model_utils):

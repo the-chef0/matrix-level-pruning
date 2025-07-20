@@ -13,6 +13,9 @@ class MHAProjection(Enum):
 
 @runtime_checkable
 class ConfigProtocol(Protocol):
+    """
+    Please see the repo README
+    """
     DEVICE: str
     MODEL: PreTrainedModel | Module
     TOKENIZER: PreTrainedTokenizer | None
