@@ -1,3 +1,5 @@
+from datasets import load_dataset
+import torch
 from torch_pruning.dependency import DependencyGraph
 
 from config.config_protocol import ConfigProtocol
@@ -11,6 +13,7 @@ class ModelUtils:
     """
 
     def __init__(self, cfg: ConfigProtocol):
+        self.ds = load_dataset("SamuelYang/bookcorpus", split='train')
         self.model = cfg.MODEL.to(cfg.DEVICE)
         self.tokenizer = cfg.TOKENIZER
 
@@ -28,6 +31,7 @@ class ModelUtils:
         self.initialize_module_set()
 
         self.default_param_count = self.get_param_count()
+        self.estimate_gradients()
 
     def build_module_name_mappings(self):
         print("(Re)building module - name mappings")
@@ -60,3 +64,10 @@ class ModelUtils:
     
     def get_sparsity(self):
         return 1 - (self.get_param_count() / self.default_param_count)
+    
+    def estimate_gradients(self):
+        for i in range(20):
+            input = self.tokenizer(self.ds[i]['text'])
+            input_ids = torch.tensor(input['input_ids']).unsqueeze(0).to('cuda')
+            loss = self.model(input_ids, labels=input_ids).loss
+            loss.backward()

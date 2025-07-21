@@ -23,14 +23,14 @@ def evaluate_pruned(cfg: ConfigProtocol, model_utils: ModelUtils):
     llm = HFLM(
         pretrained=model,
         tokenizer=tokenizer,
-        device="cuda"
+        device="cuda",
+        batch_size='auto'
     )
 
     results = lm_eval.simple_evaluate( # call simple_evaluate
         model=llm,
         model_args=name,
-        tasks=["hellaswag", "piqa", "wsc273", "coqa", "race", "mmlu", "cmmlu"], # missing CMNLI, CHID, BoolQ, XSum, C3
-        batch_size=16,
+        tasks=["hellaswag", "piqa", "wsc273", "coqa", "race", "mmlu", "cmmlu", "boolq"], # missing CMNLI, CHID, XSum, C3
         device="cuda",
     )
 

@@ -2,7 +2,7 @@ from typing import Callable
 
 import numpy as np
 from torch.nn import Module
-from torch_pruning.pruner.importance import GroupMagnitudeImportance
+from torch_pruning.pruner.importance import GroupMagnitudeImportance, GroupTaylorImportance
 
 from config.config_protocol import ConfigProtocol
 from infra.pruning_tree_types.pruning_tree import PruningTree
@@ -76,7 +76,7 @@ class TransformPruningTree(PruningTree):
         # has the same number of channels to prune. This might become a problem if there are
         # ever dependencies via a concat or other shape changing node. If this happens, see the
         # comment above the param_subtree_deps definition.
-        self.importance_fn = GroupMagnitudeImportance(normalizer=None)
+        self.importance_fn = GroupTaylorImportance(normalizer=None)
         self.model_utils = model_utils
         
         self.importance = None # TODO: The logic surrounding this should not be needed anymore?

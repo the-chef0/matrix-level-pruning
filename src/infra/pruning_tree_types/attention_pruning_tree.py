@@ -3,7 +3,7 @@ from typing import Callable
 import numpy as np
 from torch.nn import Module
 import torch_pruning as tp
-from torch_pruning.pruner.importance import GroupMagnitudeImportance
+from torch_pruning.pruner.importance import GroupMagnitudeImportance, GroupTaylorImportance
 
 from config.config_protocol import ConfigProtocol, MHAProjection
 from infra.pruning_tree_types.pruning_tree import PruningTree
@@ -37,7 +37,7 @@ class AttentionPruningTree(PruningTree):
         super().__init__(model_utils)
         self.model_utils = model_utils
         self.module = attention_module
-        self.importance_fn = GroupMagnitudeImportance(normalizer=None, group_reduction=None)
+        self.importance_fn = GroupTaylorImportance(normalizer=None, group_reduction=None)
         self.qo_idxs = qo_idxs
         self.kv_idxs = kv_idxs
 
