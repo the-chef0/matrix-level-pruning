@@ -29,7 +29,7 @@ def evaluate_pruned(cfg: ConfigProtocol, model_utils: ModelUtils):
     results = lm_eval.simple_evaluate( # call simple_evaluate
         model=llm,
         model_args=name,
-        tasks=["hellaswag, piqa, wsc273, coqa, race, mmlu, cmmlu"], # missing CMNLI, CHID, BoolQ, XSum, C3
+        tasks=["hellaswag", "piqa", "wsc273", "coqa", "race", "mmlu", "cmmlu"], # missing CMNLI, CHID, BoolQ, XSum, C3
         batch_size=16,
         device="cuda",
     )
