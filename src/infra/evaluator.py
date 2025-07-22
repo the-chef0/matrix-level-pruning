@@ -15,6 +15,7 @@ def evaluate_pruned(cfg: ConfigProtocol, model_utils: ModelUtils):
         model = model_utils.model
         tokenizer = model_utils.tokenizer
     else:
+        print(f"Loading saved model from {cfg.PRUNED_MODEL_SAVE_DIR}")
         model = torch.load(os.path.join(cfg.PRUNED_MODEL_SAVE_DIR, "model.pth"), weights_only=False).to(cfg.DEVICE)
         tokenizer = AutoTokenizer.from_pretrained(cfg.PRUNED_MODEL_SAVE_DIR)
 
@@ -23,7 +24,7 @@ def evaluate_pruned(cfg: ConfigProtocol, model_utils: ModelUtils):
     llm = HFLM(
         pretrained=model,
         tokenizer=tokenizer,
-        device="cuda",
+        device=cfg.DEVICE,
         batch_size='auto'
     )
 
@@ -31,7 +32,7 @@ def evaluate_pruned(cfg: ConfigProtocol, model_utils: ModelUtils):
         model=llm,
         model_args=name,
         tasks=["hellaswag", "piqa", "wsc273", "coqa", "race", "mmlu", "cmmlu", "boolq"], # missing CMNLI, CHID, XSum, C3
-        device="cuda",
+        device=cfg.DEVICE,
     )
 
     print(results)

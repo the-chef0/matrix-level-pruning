@@ -9,12 +9,14 @@ from infra.passes.identity_patching import IdentityPatcher
 from infra.passes.pruning_tree_collection import collect_pruning_trees
 from infra.utils.model_utils import ModelUtils
 
-model_utils = ModelUtils(cfg)
-print("Model loaded")
+model_utils = None
+if cfg.MODEL is not None:
+    model_utils = ModelUtils(cfg)
+    print("Model loaded")
 
 curr_sparsity = 0
 iter = count()
-assert cfg.TARGET_SPARSITY > 0 and cfg.TARGET_SPARSITY < 1
+assert cfg.TARGET_SPARSITY >= 0 and cfg.TARGET_SPARSITY < 1
 while curr_sparsity < cfg.TARGET_SPARSITY:
     i = next(iter)
     print(f"Iteration {i + 1}")
@@ -33,11 +35,12 @@ while curr_sparsity < cfg.TARGET_SPARSITY:
     curr_sparsity = model_utils.get_sparsity()
     print(f"Current sparsity: {curr_sparsity}, target sparsity {cfg.TARGET_SPARSITY}")
 
-IdentityPatcher(cfg, model_utils).patch()
+if cfg.TARGET_SPARSITY > 0:
+    IdentityPatcher(cfg, model_utils).patch()
 
 pruned_model_utils = model_utils
 
-if cfg.PRUNED_MODEL_SAVE_DIR:
+if cfg.PRUNED_MODEL_SAVE_DIR and cfg.TARGET_SPARSITY > 0:
     pruned_model_utils.tokenizer.save_pretrained(cfg.PRUNED_MODEL_SAVE_DIR)
     torch.save(pruned_model_utils.model, os.path.join(cfg.PRUNED_MODEL_SAVE_DIR, "model.pth"))
     print(f"Saved pruned model to {cfg.PRUNED_MODEL_SAVE_DIR}")
