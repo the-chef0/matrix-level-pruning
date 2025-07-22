@@ -1,3 +1,6 @@
+"""Defines DepGraph pruner classes for module types that aren't recognized by default.
+"""
+
 from typing import Sequence
 
 import torch

@@ -82,7 +82,7 @@ class TransformPruningTree(PruningTree):
         self.importance = None # TODO: The logic surrounding this should not be needed anymore?
         self.dep_importance_ranking = None
 
-    def get_module_dims(self):
+    def get_module_dims(self) -> tuple[int, int]:
         """Differentiates between and extracts the lower channel dimension and the higher channel
         dimension of the transform.
 
@@ -94,7 +94,7 @@ class TransformPruningTree(PruningTree):
         root_dim_high = np.max([self.dg_helper.in_channels, self.dg_helper.out_channels])
         return root_dim_low, root_dim_high
 
-    def get_dep_importance_ranking(self):
+    def get_dep_importance_ranking(self) -> list[tuple[float, int]]:
         """If the tree contains dimension dependencies, ranks the selected channels by importance.
 
         Returns:
@@ -107,7 +107,7 @@ class TransformPruningTree(PruningTree):
             self.dep_importance_ranking = sorted(zip(importance, all_channel_idxs))
         return self.dep_importance_ranking
 
-    def get_dep_importance(self):
+    def get_dep_importance(self) -> float:
         if self.param_subtree_deps is not None:
             dep_importance_ranking = self.get_dep_importance_ranking()
             importances_ranked = [importance for (importance, idx) in dep_importance_ranking]
@@ -115,14 +115,16 @@ class TransformPruningTree(PruningTree):
         else:
             return 0
 
-    def get_root_importance(self):
+    def get_root_importance(self) -> float:
         importance = self.importance_fn(self.param_subtree_root).cpu().numpy()
         return np.mean(importance)
 
-    def get_op_importance(self):
+    def get_op_importance(self) -> float:
+        # Activations and other operations are treated as 0 importance for now, but keeping
+        # this flexible.
         return 0
 
-    def get_importance(self):
+    def get_importance(self) -> float:
         if self.importance is None:
             self.importance = np.mean([
                 self.get_root_importance(),
@@ -132,10 +134,17 @@ class TransformPruningTree(PruningTree):
             
         return self.importance
 
-    def get_root_module(self):
+    def get_root_module(self) -> Module:
         return self.param_subtree_root[0].dep.source.module
     
-    def get_dep_modules(self):
+    def get_dep_modules(self) -> list[Module]:
+        """If the pruning tree root has dimension dependencies, returns a list containing the
+        dependent modules.
+
+        Returns:
+            list[Module]: An empty list if the root has no dimension dependencies. A list containing
+                dependent modules otherwise.
+        """
         modules = []
         if self.param_subtree_deps:
             for item in self.param_subtree_deps:
@@ -144,7 +153,7 @@ class TransformPruningTree(PruningTree):
                     modules.append(item_module)
         return modules
 
-    def prune(self):
+    def prune(self) -> None:
         print(f"Pruning {self}")
         # If there are dimension dependencies, we first use the built in DepGraph width pruning
         # functionality to get the dimensions in order.

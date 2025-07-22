@@ -1,5 +1,6 @@
 from datasets import load_dataset
 import torch
+from torch.nn import Module
 from torch_pruning.dependency import DependencyGraph
 
 from config.config_protocol import ConfigProtocol
@@ -13,6 +14,7 @@ class ModelUtils:
     """
 
     def __init__(self, cfg: ConfigProtocol):
+        # A dummy dataset to estimate gradients for Taylor importance.
         self.ds = load_dataset("SamuelYang/bookcorpus", split='train')
         self.model = cfg.MODEL.to(cfg.DEVICE)
         self.tokenizer = cfg.TOKENIZER
@@ -33,21 +35,22 @@ class ModelUtils:
         self.default_param_count = self.get_param_count()
         self.estimate_gradients()
 
-    def build_module_name_mappings(self):
+    def build_module_name_mappings(self) -> None:
         print("(Re)building module - name mappings")
         self.module_to_name = {}
         for name, module in self.model.named_modules():
             self.module_to_name[module] = name
         self.name_to_module = {v: k for k, v in self.module_to_name.items()}
 
-    def build_dependency_graph(self):
+    def build_dependency_graph(self) -> None:
         print("(Re)building dependency graph")
         self.dep_graph = DependencyGraph().build_dependency(**self.dep_graph_args)
 
-    def initialize_module_set(self):
+    def initialize_module_set(self) -> None:
+        # Creates a set of modules for fast lookup.
         self.model_modules = set(self.model.modules())
 
-    def replace_module_by_name(self, module_name, new_module):
+    def replace_module_by_name(self, module_name: str, new_module: Module) -> None:
         # Split the module name into parts
         parts = module_name.split('.')
         
@@ -59,13 +62,14 @@ class ModelUtils:
         # Replace the module
         setattr(parent, parts[-1], new_module)
 
-    def get_param_count(self):
+    def get_param_count(self) -> int:
         return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
     
-    def get_sparsity(self):
+    def get_sparsity(self) -> float:
         return 1 - (self.get_param_count() / self.default_param_count)
     
-    def estimate_gradients(self):
+    def estimate_gradients(self) -> None:
+        # Accumulates gradients over 20 samples of a dataset for Taylor importance.
         for i in range(20):
             input = self.tokenizer(self.ds[i]['text'])
             input_ids = torch.tensor(input['input_ids']).unsqueeze(0).to('cuda')

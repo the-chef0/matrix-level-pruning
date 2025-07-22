@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Iterator
 
 import numpy as np
 from torch.nn import Module
@@ -25,8 +25,8 @@ class AttentionPruningTree(PruningTree):
                  qo_idxs: list, kv_idxs: list, dims_per_head: int):
         """
         Args:
-            cfg (ConfigProtocol): See class docstring.
-            model_utils (ModelUtils): See class docstring.
+            cfg (ConfigProtocol): See class.
+            model_utils (ModelUtils): See class.
             attention_module (Module): The parent module containing this attention head.
             qo_idxs (list): A list of indices corresponding to the rows of the Q head
                 grouping and the columns on the O projection matrix pertaining to this
@@ -88,23 +88,25 @@ class AttentionPruningTree(PruningTree):
             o_proj_node = model_utils.dep_graph.module2node[attention_module.o_proj]
             self.op_subtree = list(get_op_subtree(cfg, o_proj_node))
     
-    def get_param_subtree_importance(self):
+    def get_param_subtree_importance(self) -> float:
         param_subtree_importances = [
             np.mean(self.importance_fn(param_subtree_node).cpu().numpy())
             for param_subtree_node in self.param_subtree
         ]
         return np.mean(param_subtree_importances)
     
-    def get_op_importance(self):
+    def get_op_importance(self) -> float:
+        # Activations and other operations are treated as 0 importance for now, but keeping
+        # this flexible.
         return 0
     
-    def get_importance(self):
+    def get_importance(self) -> float:
         return np.mean([
             self.get_param_subtree_importance(),
             self.get_op_importance()
         ])
 
-    def prune(self):
+    def prune(self) -> None:
         print(f"Pruning {self}")
         # Only pruning attention heads, not operations
         if self.op_subtree is None:
@@ -163,7 +165,7 @@ class AttentionPruningTreeGenerator:
         # then one group of Q heads is 256 long.
         self.dims_per_q_group = self.num_q_groups * self.dims_per_head
 
-    def get_trees(self, model_utils: ModelUtils):
+    def get_trees(self, model_utils: ModelUtils) -> Iterator[AttentionPruningTree]:
         # Generate attention trees and their indices by incrementing the
         # head index and offsetting the dimensions per Q group and K/V head
         # based on the head index.

@@ -146,8 +146,8 @@ Additionally, Torch-Pruning creates this DepGraph data structure by traversing t
  - [x] Use config object in eval
  - [ ] Improve defaults in provided config file
  - [x] Write a usage guide
- - [ ] Finish docstrings
- - [ ] Make sure type hints are everywhere
+ - [x] Finish docstrings
+ - [x] Make sure type hints are everywhere
  - [x] Update examples
  - [x] Make sure everything in dep_graph_search_utils takes args on the dep graph level and returns types on the dep graph level
  - [x] Parametrize device in config

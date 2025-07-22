@@ -1,3 +1,6 @@
+"""Contains logic for filtering modules on the PyTorch Module level when collecting pruning trees.
+"""
+
 import math
 from torch import nn
 from torch.nn import Module
@@ -10,7 +13,7 @@ def is_transform_type(cfg: ConfigProtocol, module_type: Type) -> bool:
     """Checks whether the given type belongs among the transform types, as defined in the config,
 
     Args:
-        cfg (ConfigProtocol): See class docstring.
+        cfg (ConfigProtocol): See class.
         module_type (Type): The class of the module.
     Returns:
         bool: True if the type belongs among the transform types, false otherwise.
@@ -26,7 +29,7 @@ def is_attention_type(cfg: ConfigProtocol, module_type: Type) -> bool:
     """Checks whether the given type belongs among the attention types, as defined in the config,
 
     Args:
-        cfg (ConfigProtocol): See class docstring.
+        cfg (ConfigProtocol): See class.
         module_type (Type): The class of the module.
     Returns:
         bool: True if the type belongs among the attention types, false otherwise.
@@ -128,17 +131,48 @@ def changes_feature_map_dims(num_dims: int, padding: tuple, dilation: tuple, ker
 
     return not preserved
 
-def contains_excluded_keyword(cfg: ConfigProtocol, module_name: str):
+def contains_excluded_keyword(cfg: ConfigProtocol, module_name: str) -> bool:
+    """Checks if a module name has an excluded keyword (as defined in the config) as a substring,
+    e.g. you might want to exclude linear classification heads from being considered pruning
+    tree roots.
+
+    Args:
+        cfg (ConfigProtocol): See class.
+        module_name (str): The name of the module.
+    Returns:
+        bool: True if module_name contains an excluded keyword, false otherwise.
+    """
     contains_excluded = any(kw in module_name for kw in cfg.TRANSFORM_EXCLUSION_KEYWORDS)
     if contains_excluded:
         print(f"Excluding {module_name} - contains excluded keyword")
     
     return contains_excluded
 
-def is_attention_child(cfg: ConfigProtocol, module_name: str):
+def is_attention_child(cfg: ConfigProtocol, module_name: str) -> bool:
+    """Checks if a module name matches one of the Q, K, V or O projection names defined in the
+    config. Used to prevent linear Q, K, V and O modules from being considered transform pruning
+    tree roots.
+
+    Args:
+        cfg (ConfigProtocol): See class.
+        module_name (str): The name of the module.
+    Returns:
+        bool: True if module_name contains any of the attention projection matrix names, false
+            otherwise.
+    """
     return any(kw in module_name for kw in cfg.MHA_PROJECTION_NAME_MAPPING.values())
 
-def is_feature_map_transforming_conv(module: Module, module_name: str):
+def is_feature_map_transforming_conv(module: Module, module_name: str) -> bool:
+    """Checks if a module is a conv module, and if it is, whether it changes the dimensions of the
+    feature map. We avoid pruning such conv layers because we can't manipulate the feature map
+    axis in dependent layers.
+
+    Args:
+        module (Module): The module to check.
+        module_name (str): The name of the module.
+    Returns:
+        bool: True if module is a conv layer that changes feature map dimensions, False otherwise.
+    """
     if issubclass(type(module), _ConvNd):
         num_dims = get_num_conv_dims(module)
         padding, dilation, kernel, stride = get_conv_params_per_dim(module, num_dims)
@@ -157,12 +191,25 @@ def is_feature_map_transforming_conv(module: Module, module_name: str):
     else:
         return False
 
-def meets_exclusion_criteria(cfg: ConfigProtocol, module: Module, module_name: str):
+def meets_exclusion_criteria(cfg: ConfigProtocol, module: Module, module_name: str) -> bool:
+    """Collects the results of all the exclusion criteria represented by the methods above
+    and checks whether any of them apply.
+
+        Args:
+            module (Module): The module to check.
+            module_name (str): The name of the module.
+        Returns:
+            bool: True if the module meets at least one exclusion criterion, false otherwise.
+    """
     # TODO: maybe write an abstraction for this that defines an interface for these
     # exclusion checking methods and allows me to "register" them with a checker
     # that does what this function does
     exclusion_criteria = []
     exclusion_criteria.append(contains_excluded_keyword(cfg, module_name))
+    # Ensure linear layers inside attention modules aren't treated as transform pruning tree roots
     exclusion_criteria.append(is_attention_child(cfg, module_name))
+    # Feature map transforming convolutions need to be excluded because if we prune them,
+    # there is no clear way of reconciling the dimensions. We can only prune dependent layers
+    # on the channel axis, not on the feature map axes.
     exclusion_criteria.append(is_feature_map_transforming_conv(module, module_name))
     return any(crit for crit in exclusion_criteria)

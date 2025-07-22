@@ -1,3 +1,6 @@
+"""Contains logic for analyzing the DepGraph representation of the model.
+"""
+
 from typing import List, Set
 
 from torch.nn import Module, Identity
@@ -31,7 +34,7 @@ def find_adjacent_op_nodes(cfg: ConfigProtocol, source_node: Node, \
     running into other transforms.
 
     Args:
-        cfg (ConfigProtocol): See class docstring.
+        cfg (ConfigProtocol): See class.
         source_node (Node): The node to start the search from.
         search_direction (DependencyDirection): An abstraction for the direction to search in.
         operation_nodes (Set[Node]): A set of all operation nodes found so far.
@@ -63,7 +66,7 @@ def is_op_prunable(cfg: ConfigProtocol, op_node: Node, \
     Otherwise, there are other transforms that depend on op_node.
 
     Args:
-        cfg (ConfigProtocol): See class docstring.
+        cfg (ConfigProtocol): See class.
         op_node (Node): The operation node to start the search from.
         search_direction (DependencyDirection): The direction in the DepGraph pointing to the root
             transform that this process was triggered from.
@@ -119,7 +122,7 @@ def get_op_subtree(cfg: ConfigProtocol, root_node: Node) -> Set[Node]:
     and returns those that are depended on by only the root node.
 
     Args:
-        cfg (ConfigProtocol): See class docstring.
+        cfg (ConfigProtocol): See class.
         root_node (Node): The node representing the module that is the root of the parameter
             subtree.
     """

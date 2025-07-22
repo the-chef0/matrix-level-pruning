@@ -23,8 +23,8 @@ def is_transform_tree_root(cfg: ConfigProtocol, model_utils: ModelUtils, \
     transform pruning tree.
 
     Args:
-        cfg (ConfigProtocol): See class docstring.
-        model_utils (ModelUtils): See class docstring.
+        cfg (ConfigProtocol): See class.
+        model_utils (ModelUtils): See class.
         module (Module): The PyTorch module in question.
     Returns:
         bool: True if module can be treated as the root of a transform
@@ -40,8 +40,8 @@ def is_attention_tree_parent(cfg: ConfigProtocol, module: Module) -> bool:
     attention pruning tree.
 
     Args:
-        cfg (ConfigProtocol): See class docstring.
-        model_utils (ModelUtils): See class docstring.
+        cfg (ConfigProtocol): See class.
+        model_utils (ModelUtils): See class.
         module (Module): The PyTorch module in question.
     Returns:
         bool: True if module can be treated as the root of an attention
@@ -49,11 +49,12 @@ def is_attention_tree_parent(cfg: ConfigProtocol, module: Module) -> bool:
     """
     return is_attention_type(cfg, type(module))
 
-def collect_pruning_trees(cfg: ConfigProtocol, model_utils: ModelUtils, iteration: int) -> list[tuple[float, PruningTree]]:
+def collect_pruning_trees(cfg: ConfigProtocol, model_utils: ModelUtils, iteration: int) \
+    -> list[tuple[float, PruningTree]]:
     """Enumerates and ranks all pruning trees in the model.
 
     Args:
-        model_utils (ModelUtils): See class docstring.
+        model_utils (ModelUtils): See class.
         iteration (int): Used to distinguish between saved importance files if multiple
             iterations are done.
     Returns:
