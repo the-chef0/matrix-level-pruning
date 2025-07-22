@@ -35,11 +35,11 @@ See `config/config_protocol.py` for a definition of the configuration protocol a
 | `EVALUATE`                     | Can be `None`                                            | Whether to evaluate the pruned model (TODO: evaluation config).                                                                                                                     |
 | `EVAL_RESULTS_PATH`            | Yes                                            | A path of the format `/path/to/file.csv' where to save the results of the evaluation.                                                                                               |
 | `DEP_GRAPH_ARGS`               | Probably                                           | Look [here](#additional-notes-on-depgraph-arguments) for more info.                                                                                                                 |
-| `BASE_TRANSFORM_TYPES`         | Defaults in given config file likely reusable | Defines which module types should be considered transforms (see [the Pruning Tree data structure](#the-pruning-tree-data-structure)).                                               |
 | `TRANSFORM_EXCLUSION_KEYWORDS` | Can be `set([])`                                            | (Sub)strings of variable names of transforms that should not be considered for pruning (e.g. embedding layers, classification heads...).                                            |
-| `BASE_ATTENTION_TYPES`         | Only in attention-based models; otherwise can be `set([])`.                | Defines which module type(s) should be considered parent attention module(s) (see [the Pruning Tree data structure](#the-pruning-tree-data-structure))                                                                                                     |
-| `MHA_PROJECTION_NAME_MAPPING`  | Only in attention-based models; otherwise can be `set([])`.                | A mapping determining which variable names the code should look for within the attention module(s) to identify the Q, K, V and O projections.                                       |
-| `BASE_OPERATION_TYPES`         | Yes                                           | Defines which modules types should be considered activation functions, normalization functions, etc. (see  [the Pruning Tree data structure](#the-pruning-tree-data-structure)) |
+| `BASE_ATTENTION_TYPES`         | Only in attention-based models; otherwise can be `set([])`                | Defines which module type(s) should be considered parent attention module(s) (see [the Pruning Tree data structure](#the-pruning-tree-data-structure))                                                                                                     |
+| `MHA_PROJECTION_NAME_MAPPING`  | Only in attention-based models; otherwise can be `set([])`               | A mapping determining which variable names the code should look for within the attention module(s) to identify the Q, K, V and O projections.                                       |
+| `BASE_TRANSFORM_TYPES`         | Yes, defaults in given config file likely reusable | Defines which module types should be considered transforms (see [the Pruning Tree data structure](#the-pruning-tree-data-structure)).                                               |
+| `BASE_OPERATION_TYPES`         | Yes, but defaults in given config file likely reusable                                           | Defines which modules types should be considered activation functions, normalization functions, etc. (see  [the Pruning Tree data structure](#the-pruning-tree-data-structure)) |
 
 #### Additional notes on DepGraph arguments
 
@@ -144,7 +144,7 @@ Additionally, Torch-Pruning creates this DepGraph data structure by traversing t
  - [x] Make naming in attention_pruning_tree consistent with transform_pruning_tree
  - [x] Clean up identity_patcher, see if any dep_graph_search_utils functions can be repurposed
  - [x] Use config object in eval
- - [ ] Improve defaults in provided config file
+ - [x] Improve defaults in provided config file
  - [x] Write a usage guide
  - [x] Finish docstrings
  - [x] Make sure type hints are everywhere

@@ -87,10 +87,6 @@ class Config(ConfigProtocol):
             nn.ReLU: OperationPruner()
         }
     }
-    BASE_TRANSFORM_TYPES = set([
-        modules.Linear,
-        modules.conv._ConvNd
-    ])
     TRANSFORM_EXCLUSION_KEYWORDS = set([
         'conv1',
         'avgpool',
@@ -98,8 +94,55 @@ class Config(ConfigProtocol):
     ])
     BASE_ATTENTION_TYPES = set([])
     MHA_PROJECTION_NAME_MAPPING = {}
+    BASE_TRANSFORM_TYPES = set([
+        modules.Linear,
+        modules.conv._ConvNd
+    ])
     BASE_OPERATION_TYPES = set([
+        nn.ELU,
+        nn.Hardshrink,
+        nn.Hardsigmoid,
+        nn.Hardtanh,
+        nn.Hardswish,
+        nn.LeakyReLU,
+        nn.LogSigmoid,
+        nn.PReLU,
         nn.ReLU,
+        nn.ReLU6,
+        nn.RReLU,
+        nn.SELU,
+        nn.CELU,
+        nn.GELU,
+        nn.Sigmoid,
+        nn.SiLU,
+        nn.Mish,
+        nn.Softplus,
+        nn.Softshrink,
+        nn.Softsign,
+        nn.Tanh,
+        nn.Tanhshrink,
+        nn.Threshold,
+        nn.GLU,
+        nn.Softmin,
+        nn.Softmax,
+        nn.Softmax2d,
+        nn.LogSoftmax,
+        nn.AdaptiveLogSoftmaxWithLoss,
+        nn.BatchNorm1d,
         nn.BatchNorm2d,
-        nn.MaxPool2d
+        nn.BatchNorm3d,
+        nn.LazyBatchNorm1d,
+        nn.LazyBatchNorm2d,
+        nn.LazyBatchNorm3d,
+        nn.GroupNorm,
+        nn.SyncBatchNorm,
+        nn.InstanceNorm1d,
+        nn.InstanceNorm2d,
+        nn.InstanceNorm3d,
+        nn.LazyInstanceNorm1d,
+        nn.LazyInstanceNorm2d,
+        nn.LazyInstanceNorm3d,
+        nn.LayerNorm,
+        nn.LocalResponseNorm,
+        nn.RMSNorm,
     ])
