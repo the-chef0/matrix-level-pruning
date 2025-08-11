@@ -31,8 +31,15 @@ class IdentityWithGrad(nn.Identity):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__()
 
-    def forward(self, input: Tensor) -> Tensor:
-        return IdentityFunction.apply(input)
+    def forward(self, *args, **kwargs) -> Tensor:
+        hidden = None
+
+        if args:
+            hidden = args[0]
+            return IdentityFunction.apply(hidden)
+        else:
+            hidden = next(iter(kwargs.values()), None)
+            return IdentityFunction.apply(hidden), None
 
 class AdditiveIdentity(nn.Identity):
     """A module that returns an all-zeroes tensor with the same shape as the
