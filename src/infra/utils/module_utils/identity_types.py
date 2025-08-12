@@ -54,8 +54,15 @@ class AdditiveIdentity(nn.Identity):
         super().__init__()
         self.device = device
 
-    def forward(self, input: Tensor) -> Tensor:
-        return torch.zeros_like(input).to(self.device)
+    def forward(self, *args, **kwargs) -> Tensor:
+        hidden = None
+
+        if args:
+            hidden = args[0]
+            return torch.zeros_like(hidden).to(self.device)
+        else:
+            hidden = next(iter(kwargs.values()), None)
+            return torch.zeros_like(hidden).to(self.device), None
 
 class MultiplicativeIdentity(nn.Identity):
     """Returns an all-ones tensor with the same shape as the input. A multiplicative analog to
@@ -66,8 +73,16 @@ class MultiplicativeIdentity(nn.Identity):
         super().__init__()
         self.device = device
 
-    def forward(self, input: Tensor) -> Tensor:
-        return torch.ones_like(input).to(self.device)
+    def forward(self, *args, **kwargs) -> Tensor:
+        hidden = None
+
+        if args:
+            hidden = args[0]
+            return torch.ones_like(hidden).to(self.device)
+        else:
+            hidden = next(iter(kwargs.values()), None)
+            return torch.ones_like(hidden).to(self.device), None
+
 
 class ConcatenativeIdentity(nn.Identity):
     """A module that returns an empty tensor, representing an identity element under concatenation.
@@ -82,4 +97,4 @@ class ConcatenativeIdentity(nn.Identity):
         self.device = device
 
     def forward(self, input: Tensor) -> Tensor:
-        return torch.empty(0).to(self.device) # TODO: parametrize device in config
+        return torch.empty(0).to(self.device)
