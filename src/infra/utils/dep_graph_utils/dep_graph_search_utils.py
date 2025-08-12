@@ -42,12 +42,15 @@ def find_adjacent_op_nodes(cfg: ConfigProtocol, source_node: Node, \
         Set[Node]: All operation nodes that can be found in the given direction before another
         transform.
     """
+    
+    base_operation_types = cfg.BASE_ACT_TYPES if search_direction == DependencyDirection.FORWARD \
+        else cfg.BASE_NORM_TYPES
 
     branches = get_adjacent_nodes(source_node, search_direction)
     
     for branch_node in branches:
         branch_node_module_type = type(branch_node.module)
-        if branch_node_module_type in cfg.BASE_OPERATION_TYPES:
+        if branch_node_module_type in base_operation_types:
             operation_nodes.add(branch_node)
         if is_transform_type(cfg, branch_node_module_type):
             continue
@@ -59,7 +62,7 @@ def find_adjacent_op_nodes(cfg: ConfigProtocol, source_node: Node, \
     return operation_nodes
 
 def is_op_prunable(cfg: ConfigProtocol, op_node: Node, \
-    search_direction: DependencyDirection) -> bool:
+    search_direction: DependencyDirection, allowed_transform_nodes: set[Node] = None) -> bool:
     """Searches from an operation node, back in the direction of its root transform, to see if
     there are any transforms other than the root that use it. If there is only one path back to a
     transform, it is only the root, and we can prune the operation together with it. 
@@ -74,20 +77,25 @@ def is_op_prunable(cfg: ConfigProtocol, op_node: Node, \
         bool: Whether or not the operation is prunable.
     """
 
-    def num_dependent_transforms(node: Node, direction: DependencyDirection) -> int:
-        num_dependent_paths = 0
+    def get_dependent_transforms(node: Node, direction: DependencyDirection) -> set:
+        dep_transforms = set()
         if is_transform_type(cfg, type(node.module)):
-            return 1
+            dep_transforms.add(node)
+            return dep_transforms
 
         branches = get_adjacent_nodes(node, direction)
         for branch_node in branches:
-            num_dependent_paths += num_dependent_transforms(branch_node, direction)
-            if num_dependent_paths >= 2:
+            dep_transforms = dep_transforms | get_dependent_transforms(branch_node, direction)
+            if len(dep_transforms) >= 2 and (not allowed_transform_nodes):
                 break
         
-        return num_dependent_paths
+        return dep_transforms
     
-    return num_dependent_transforms(op_node, search_direction) <= 1
+    dep_transforms = get_dependent_transforms(op_node, search_direction)
+    if allowed_transform_nodes:
+        return dep_transforms == allowed_transform_nodes
+    else:
+        return len(dep_transforms) <= 1
 
 def find_nearest_nonid_module_node(source_node: Node, modules: set, \
     search_direction: DependencyDirection) -> Node:
@@ -117,7 +125,8 @@ def find_nearest_nonid_module_node(source_node: Node, modules: set, \
     else:
         return recursive_case(source_node)
 
-def get_op_subtree(cfg: ConfigProtocol, root_node: Node) -> Set[Node]:
+def get_op_subtree(cfg: ConfigProtocol, root_node: Node, allowed_transform_nodes: set[Node] = None)\
+    -> Set[Node]:
     """Finds all operation nodes that might be coupled to the module represented by the root node, 
     and returns those that are depended on by only the root node.
 
@@ -128,15 +137,26 @@ def get_op_subtree(cfg: ConfigProtocol, root_node: Node) -> Set[Node]:
     """
     op_subtree = set()
     
-    operation_nodes = find_adjacent_op_nodes(
+    act_nodes = find_adjacent_op_nodes(
         cfg=cfg,
         source_node=root_node,
         search_direction=DependencyDirection.FORWARD,
         operation_nodes=set()
     )
 
-    for node in operation_nodes:
-        if is_op_prunable(cfg, node, DependencyDirection.BACKWARD):
+    norm_nodes = find_adjacent_op_nodes(
+        cfg=cfg,
+        source_node=root_node,
+        search_direction=DependencyDirection.BACKWARD,
+        operation_nodes=set()
+    )
+
+    for node in act_nodes:
+        if is_op_prunable(cfg, node, DependencyDirection.BACKWARD, allowed_transform_nodes):
+            op_subtree.add(node)
+
+    for node in norm_nodes:
+        if is_op_prunable(cfg, node, DependencyDirection.FORWARD, allowed_transform_nodes):
             op_subtree.add(node)
 
     return op_subtree

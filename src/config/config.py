@@ -44,7 +44,7 @@ class Config(ConfigProtocol):
         modules.Linear,
         modules.conv._ConvNd
     ])
-    BASE_OPERATION_TYPES = set([
+    BASE_ACT_TYPES = set([
         nn.ELU,
         nn.Hardshrink,
         nn.Hardsigmoid,
@@ -74,6 +74,8 @@ class Config(ConfigProtocol):
         nn.Softmax2d,
         nn.LogSoftmax,
         nn.AdaptiveLogSoftmaxWithLoss,
+    ])
+    BASE_NORM_TYPES = set([
         nn.BatchNorm1d,
         nn.BatchNorm2d,
         nn.BatchNorm3d,

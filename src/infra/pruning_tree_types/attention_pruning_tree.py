@@ -85,8 +85,18 @@ class AttentionPruningTree(PruningTree):
         self.op_subtree = None
         # When there is only one head left, we can start pruning operations
         if self.module.k_proj.out_features == dims_per_head:
+            q_proj_node = model_utils.dep_graph.module2node[attention_module.q_proj]
+            k_proj_node = model_utils.dep_graph.module2node[attention_module.k_proj]
+            v_proj_node = model_utils.dep_graph.module2node[attention_module.v_proj]
             o_proj_node = model_utils.dep_graph.module2node[attention_module.o_proj]
-            self.op_subtree = list(get_op_subtree(cfg, o_proj_node))
+
+            qkv_side_subtree = get_op_subtree(
+                cfg, q_proj_node,
+                allowed_transform_nodes=set([q_proj_node, k_proj_node, v_proj_node])
+            )
+            o_side_subtree = get_op_subtree(cfg, o_proj_node)
+
+            self.op_subtree = list(qkv_side_subtree | o_side_subtree)
     
     def get_param_subtree_importance(self) -> float:
         param_subtree_importances = [
