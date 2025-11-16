@@ -1,4 +1,5 @@
 from typing import Iterator
+from typing import Iterator
 
 import numpy as np
 from torch.nn import Module
@@ -9,7 +10,7 @@ from config.config_protocol import ConfigProtocol, MHAProjection
 from infra.pruning_tree_types.pruning_tree import PruningTree
 from infra.utils.dep_graph_utils.dep_graph_search_utils import get_op_subtree, \
     get_param_subtree_singleton
-from infra.utils.model_utils import ModelUtils
+from src.infra.utils.model_utils import ModelUtils
 from infra.utils.module_utils.identity_types import IdentityWithGrad
 
 class AttentionPruningTree(PruningTree):
@@ -27,6 +28,8 @@ class AttentionPruningTree(PruningTree):
         Args:
             cfg (ConfigProtocol): See class.
             model_utils (ModelUtils): See class.
+            cfg (ConfigProtocol): See class.
+            model_utils (ModelUtils): See class.
             attention_module (Module): The parent module containing this attention head.
             qo_idxs (list): A list of indices corresponding to the rows of the Q head
                 grouping and the columns on the O projection matrix pertaining to this
@@ -35,11 +38,13 @@ class AttentionPruningTree(PruningTree):
                 matrices pertaining to this attention head.
         """
         super().__init__(model_utils)
+        self.cfg = cfg
         self.model_utils = model_utils
         self.module = attention_module
         self.importance_fn = GroupTaylorImportance(normalizer=None, group_reduction=None)
         self.qo_idxs = qo_idxs
         self.kv_idxs = kv_idxs
+        self.dims_per_head = dims_per_head
 
         # Use the Q, K, V and O projection variable names as defined in the config to
         # obtain the relevant modules from the attention parent module.
@@ -47,6 +52,7 @@ class AttentionPruningTree(PruningTree):
         k_proj = getattr(attention_module, cfg.MHA_PROJECTION_NAME_MAPPING[MHAProjection.K])
         v_proj = getattr(attention_module, cfg.MHA_PROJECTION_NAME_MAPPING[MHAProjection.V])
         o_proj = getattr(attention_module, cfg.MHA_PROJECTION_NAME_MAPPING[MHAProjection.O])
+        self.device = q_proj.weight.device
 
         # The parameter subtree is defined here and consists of 4 Torch-Pruning Group objects,
         # each encapsulating the information to prune one head from each of the projection
@@ -115,8 +121,25 @@ class AttentionPruningTree(PruningTree):
             self.get_param_subtree_importance(),
             self.get_op_importance()
         ])
+    
+    def update_op_subtree(self):
+        # When there is only one head left, we can start pruning operations
+        if self.module.k_proj.out_features == self.dims_per_head:
+            q_proj_node = self.model_utils.dep_graph.module2node[self.module.q_proj]
+            k_proj_node = self.model_utils.dep_graph.module2node[self.module.k_proj]
+            v_proj_node = self.model_utils.dep_graph.module2node[self.module.v_proj]
+            o_proj_node = self.model_utils.dep_graph.module2node[self.module.o_proj]
 
-    def prune(self) -> None:
+            qkv_side_subtree = get_op_subtree(
+                self.cfg, q_proj_node,
+                expected_dependent_nodes=set([q_proj_node, k_proj_node, v_proj_node])
+            )
+            o_side_subtree = get_op_subtree(self.cfg, o_proj_node)
+
+            self.op_subtree = list(qkv_side_subtree | o_side_subtree)
+
+    def prune(self, skip_listeners: bool = False) -> None:
+        self.update_op_subtree()
         print(f"Pruning {self}")
         # Only pruning attention heads, not operations
         if self.op_subtree is None:
@@ -128,20 +151,22 @@ class AttentionPruningTree(PruningTree):
             operation_modules = [node.module for node in self.op_subtree]
             for op_module in operation_modules:
                 op_module_name = self.model_utils.module_to_name[op_module]
-                self.model_utils.replace_module_by_name(op_module_name, IdentityWithGrad())
+                self.model_utils.replace_module_by_name(op_module_name, IdentityWithGrad(self.device))
             
             attention_module_name = self.model_utils.module_to_name[self.module]
-            self.model_utils.replace_module_by_name(attention_module_name, IdentityWithGrad())
+            self.model_utils.replace_module_by_name(attention_module_name, IdentityWithGrad(self.device))
 
-        self.call_post_prune_listeners()
+        if not skip_listeners:
+            self.call_post_prune_listeners()
 
     def __str__(self):
         module_str = f"{self.model_utils.module_to_name[self.module]}\n"
         kv_str = f"K/V head ({self.kv_idxs[0]}, {self.kv_idxs[-1]})\n"
         qo_str = f"Q/0 heads ({self.qo_idxs[0]}, {self.qo_idxs[-1]})\n"
 
-        operation_str = "Operations:\n"
+        operation_str = ""
         if self.op_subtree is not None:
+            operation_str += "Operations:\n"
             for op in self.op_subtree:
                 operation_str += f"{op.module}\n"
 

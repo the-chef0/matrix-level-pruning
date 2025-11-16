@@ -2,7 +2,7 @@ from typing import Callable
 
 import numpy as np
 from torch.nn import Module
-from torch_pruning.pruner.importance import GroupMagnitudeImportance, GroupTaylorImportance
+from torch_pruning.pruner.importance import GroupMagnitudeImportance, GroupTaylorImportance, MagnitudeImportance
 
 from config.config_protocol import ConfigProtocol
 from infra.pruning_tree_types.pruning_tree import PruningTree
@@ -10,7 +10,7 @@ from infra.utils.dep_graph_utils.dep_graph_helper import DepGraphHelper, Depende
 from infra.utils.dep_graph_utils.dep_graph_search_utils import get_op_subtree
 from infra.utils.module_utils.pruning_tree_collection_utils import is_transform_type
 from infra.utils.module_utils.identity_types import IdentityWithGrad
-from infra.utils.model_utils import ModelUtils
+from src.infra.utils.model_utils import ModelUtils
 
 class TransformPruningTree(PruningTree):
     """ Defines a transform pruning tree, i.e. a pruning tree rooted at either
@@ -34,6 +34,7 @@ class TransformPruningTree(PruningTree):
     be removed along with it.
     """
     def __init__(self, cfg: ConfigProtocol, model_utils: ModelUtils, root_module: Module):
+        print(f"Building tree for {model_utils.module_to_name[root_module]}")
         super().__init__(model_utils)
         self.cfg = cfg
         self.model_utils = model_utils
@@ -60,11 +61,11 @@ class TransformPruningTree(PruningTree):
         # adjust dimensions in the forward directions because the following layers were expecting 
         # the smaller input.
         if self.dg_helper.direction != DependencyDirection.NOT_APPLICABLE:
-            # The remainder of the Group object contains the dependent layers, and we isolate
-            # those as the dependency part of the parameter subtree.
+            # The remainder of the Group object contains the dependent layers.
             # Formulate as a list of singleton Group objects if channel dimensions become
             # a problem.
-            self.param_subtree_deps = self.param_subtree[1:]
+            # self.param_subtree_deps = self.param_subtree[1:]
+            self.param_subtree_deps = self.param_subtree
         else:
             self.param_subtree_deps = None
             
@@ -153,7 +154,7 @@ class TransformPruningTree(PruningTree):
                     modules.append(item_module)
         return modules
 
-    def prune(self) -> None:
+    def prune(self, skip_listeners: bool = False) -> None:
         print(f"Pruning {self}")
         # If there are dimension dependencies, we first use the built in DepGraph width pruning
         # functionality to get the dimensions in order.
@@ -167,15 +168,17 @@ class TransformPruningTree(PruningTree):
         # identity module.
         root_module = self.get_root_module()
         root_module_name = self.model_utils.module_to_name[root_module]
-        self.model_utils.replace_module_by_name(root_module_name, IdentityWithGrad())
+        root_module_device = root_module.weight.device
+        self.model_utils.replace_module_by_name(root_module_name, IdentityWithGrad(root_module_device))
         
         # Operations coupled to the root (operation subtree) can also be pruned, if any.
         operation_modules = [node.module for node in self.op_subtree]
         for op_module in operation_modules:
             op_module_name = self.model_utils.module_to_name[op_module]
-            self.model_utils.replace_module_by_name(op_module_name, IdentityWithGrad())
+            self.model_utils.replace_module_by_name(op_module_name, IdentityWithGrad(root_module_device))
 
-        self.call_post_prune_listeners()
+        if not skip_listeners:
+            self.call_post_prune_listeners()
 
     def __str__(self):
         root_module = self.get_root_module()
