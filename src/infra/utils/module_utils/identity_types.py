@@ -21,15 +21,16 @@ class IdentityFunction(torch.autograd.Function):
     def backward(ctx, grad_output):
         return grad_output
 
-class IdentityWithGrad(nn.Identity):
+class IdentityWithGrad(nn.Module):
     """Uses the IdentityFunction Autograd function to create an Identity module where every
     instance has a unique Autograd function instance. An Identity module indicates that a module
     has been pruned there, so we need unique instances everywhere in the DepGraph to build logic
     around these pruned modules.
     """
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, device, *args: Any, **kwargs: Any) -> None:
         super().__init__()
+        self.device = device
 
     def forward(self, *args, **kwargs) -> Tensor:
         hidden = None
@@ -40,8 +41,17 @@ class IdentityWithGrad(nn.Identity):
         else:
             hidden = next(iter(kwargs.values()), None)
             return IdentityFunction.apply(hidden), None
+    def forward(self, *args, **kwargs) -> Tensor:
+        hidden = None
 
-class AdditiveIdentity(nn.Identity):
+        if args:
+            hidden = args[0]
+            return IdentityFunction.apply(hidden)
+        else:
+            hidden = next(iter(kwargs.values()), None)
+            return IdentityFunction.apply(hidden), None
+
+class AdditiveIdentity(nn.Module):
     """A module that returns an all-zeroes tensor with the same shape as the
     input, representing an identity element under addition. This is used in situations where an
     addition node in the DepGraph has two inputs from two different IdentityWithGrad nodes, 
@@ -50,7 +60,7 @@ class AdditiveIdentity(nn.Identity):
     optimized away when compiling for inference.
     """
 
-    def __init__(self, device: str, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, device, *args: Any, **kwargs: Any) -> None:
         super().__init__()
         self.device = device
 
@@ -63,13 +73,22 @@ class AdditiveIdentity(nn.Identity):
         else:
             hidden = next(iter(kwargs.values()), None)
             return torch.zeros_like(hidden).to(self.device), None
+    def forward(self, *args, **kwargs) -> Tensor:
+        hidden = None
 
-class MultiplicativeIdentity(nn.Identity):
+        if args:
+            hidden = args[0]
+            return torch.zeros_like(hidden).to(self.device)
+        else:
+            hidden = next(iter(kwargs.values()), None)
+            return torch.zeros_like(hidden).to(self.device), None
+
+class MultiplicativeIdentity(nn.Module):
     """Returns an all-ones tensor with the same shape as the input. A multiplicative analog to
     AdditiveIdentity.
     """
 
-    def __init__(self, device: str, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, device, *args: Any, **kwargs: Any) -> None:
         super().__init__()
         self.device = device
 
@@ -84,7 +103,7 @@ class MultiplicativeIdentity(nn.Identity):
             return torch.ones_like(hidden).to(self.device), None
 
 
-class ConcatenativeIdentity(nn.Identity):
+class ConcatenativeIdentity(nn.Module):
     """A module that returns an empty tensor, representing an identity element under concatenation.
     Used in situations where a concat node has all inputs from different IdentityWithGrad nodes,
     indicating that modules producing all operands were pruned. This could indicate that we have
@@ -92,7 +111,7 @@ class ConcatenativeIdentity(nn.Identity):
     one of them. The rest are replaced with an instance of this, and when compiling for inference,
     the compiler might optimize them away.
     """
-    def __init__(self, device: str, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, device, *args: Any, **kwargs: Any) -> None:
         super().__init__()
         self.device = device
 
