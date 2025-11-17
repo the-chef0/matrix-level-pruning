@@ -10,7 +10,7 @@ from config.config_protocol import ConfigProtocol, MHAProjection
 from infra.pruning_tree_types.pruning_tree import PruningTree
 from infra.utils.dep_graph_utils.dep_graph_search_utils import get_op_subtree, \
     get_param_subtree_singleton
-from src.infra.utils.model_utils import ModelUtils
+from infra.utils.model_utils import ModelUtils
 from infra.utils.module_utils.identity_types import IdentityWithGrad
 
 class AttentionPruningTree(PruningTree):

@@ -10,7 +10,7 @@ from infra.utils.dep_graph_utils.dep_graph_helper import DepGraphHelper, Depende
 from infra.utils.dep_graph_utils.dep_graph_search_utils import get_op_subtree
 from infra.utils.module_utils.pruning_tree_collection_utils import is_transform_type
 from infra.utils.module_utils.identity_types import IdentityWithGrad
-from src.infra.utils.model_utils import ModelUtils
+from infra.utils.model_utils import ModelUtils
 
 class TransformPruningTree(PruningTree):
     """ Defines a transform pruning tree, i.e. a pruning tree rooted at either

@@ -6,7 +6,7 @@ from torch_pruning.ops import _ConcatOp, _ElementWiseOp
 from config.config_protocol import ConfigProtocol
 from infra.utils.module_utils.identity_types import AdditiveIdentity, ConcatenativeIdentity, \
     MultiplicativeIdentity
-from src.infra.utils.model_utils import ModelUtils
+from infra.utils.model_utils import ModelUtils
 from infra.utils.module_utils.pruning_tree_collection_utils import is_identity_module
 from infra.utils.dep_graph_utils.dep_graph_helper import DependencyDirection
 from infra.utils.dep_graph_utils.dep_graph_search_utils import find_nearest_nonid_module_node, \
