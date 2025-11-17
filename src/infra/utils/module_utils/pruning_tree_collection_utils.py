@@ -8,6 +8,7 @@ from torch.nn.modules.conv import _ConvNd
 from typing import Type
 
 from config.config_protocol import ConfigProtocol
+from infra.utils.module_utils.identity_types import IdentityWithGrad, AdditiveIdentity, MultiplicativeIdentity, ConcatenativeIdentity
 
 def is_transform_type(cfg: ConfigProtocol, module_type: Type) -> bool:
     """Checks whether the given type belongs among the transform types, as defined in the config,
@@ -24,6 +25,12 @@ def is_transform_type(cfg: ConfigProtocol, module_type: Type) -> bool:
             is_transform = True
             break
     return is_transform
+
+def is_identity_module(module: Module) -> bool:
+    return isinstance(module, IdentityWithGrad) \
+        or isinstance(module, AdditiveIdentity) \
+        or isinstance(module, MultiplicativeIdentity) \
+        or isinstance(module, ConcatenativeIdentity)
 
 def is_attention_type(cfg: ConfigProtocol, module_type: Type) -> bool:
     """Checks whether the given type belongs among the attention types, as defined in the config,

@@ -7,6 +7,7 @@ from config.config_protocol import ConfigProtocol
 from infra.utils.module_utils.identity_types import AdditiveIdentity, ConcatenativeIdentity, \
     MultiplicativeIdentity
 from infra.utils.model_utils import ModelUtils
+from infra.utils.module_utils.pruning_tree_collection_utils import is_identity_module
 from infra.utils.dep_graph_utils.dep_graph_helper import DependencyDirection
 from infra.utils.dep_graph_utils.dep_graph_search_utils import find_nearest_nonid_module_node, \
     get_param_subtree_singleton
@@ -51,7 +52,7 @@ class IdentityPatcher:
         id_operand_nodes = []
 
         for op_node in operands:
-            if isinstance(op_node.module, nn.Identity):
+            if is_identity_module(op_node.module):
                 id_operand_nodes.append(op_node)
 
         return id_operand_nodes
@@ -130,7 +131,7 @@ class IdentityPatcher:
                 print(f"Patching identity in {identity_module_name} with {arithmetic_identity_type.__name__}")
                 self.model_utils.replace_module_by_name(
                     module_name=identity_module_name,
-                    new_module=arithmetic_identity_type(device=self.cfg.DEVICE)
+                    new_module=arithmetic_identity_type(fst_identity_module.device),
                 )
 
     def patch_concat_node_operands(self, concat_node: Node) -> None:
@@ -144,6 +145,7 @@ class IdentityPatcher:
         identity_operand_nodes = self.find_identity_operand_nodes(concat_node.inputs)
         
         if identity_operand_nodes:
+            fst_identity_module = identity_operand_nodes[0].module
             predecessors = []
             for operand in concat_node.inputs:
                 predecessors.append(find_nearest_nonid_module_node(
@@ -151,7 +153,7 @@ class IdentityPatcher:
                     modules=self.model_utils.model_modules,
                     search_direction=DependencyDirection.BACKWARD
                 ))
-            
+           
             if all(pred == predecessors[0] for pred in predecessors):
                 for id_operand_node in identity_operand_nodes[1:]:
                     identity_module = id_operand_node.module
@@ -159,7 +161,7 @@ class IdentityPatcher:
                     print(f"Patching identity in {identity_module_name} with {ConcatenativeIdentity.__name__}")
                     self.model_utils.replace_module_by_name(
                         module_name=identity_module_name,
-                        new_module=ConcatenativeIdentity(device=self.cfg.DEVICE)
+                        new_module=ConcatenativeIdentity(fst_identity_module.device),
                     )
                 
                 self.adjust_concat_successor_dims(concat_node)

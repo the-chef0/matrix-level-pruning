@@ -1,7 +1,6 @@
 from typing import Protocol, runtime_checkable
 import torch
 from torch.nn import Module
-from transformers import PreTrainedModel, PreTrainedTokenizer
 
 from enum import Enum, auto
 
@@ -17,8 +16,8 @@ class ConfigProtocol(Protocol):
     Please see the repo README
     """
     DEVICE: str
-    MODEL: PreTrainedModel | Module
-    TOKENIZER: PreTrainedTokenizer | None
+    MODEL: Module
+    TOKENIZER: None
     DUMMY_INPUT: torch.Tensor
     IMPORTANCES_SAVE_PATH: str | None
     TARGET_SPARSITY: float

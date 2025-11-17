@@ -1,15 +1,19 @@
 """Contains logic for analyzing the DepGraph representation of the model.
 """
 
+"""Contains logic for analyzing the DepGraph representation of the model.
+"""
+
 from typing import List, Set
 
 from torch.nn import Module, Identity
 from torch_pruning.dependency import DependencyGraph, Group, Node
+from torch_pruning.ops import _ConcatOp, _ElementWiseOp
 from torch_pruning.pruner.function import BasePruningFunc
 
 from config.config_protocol import ConfigProtocol
 from infra.utils.dep_graph_utils.dep_graph_helper import DependencyDirection
-from infra.utils.module_utils.pruning_tree_collection_utils import is_transform_type
+from infra.utils.module_utils.pruning_tree_collection_utils import is_transform_type, is_identity_module
 
 def get_adjacent_nodes(node: Node, search_direction: DependencyDirection) -> List[Node]:
     """For a given node, gets a list of either its successors or predecessors depending on
@@ -42,7 +46,6 @@ def find_adjacent_op_nodes(cfg: ConfigProtocol, source_node: Node, \
         Set[Node]: All operation nodes that can be found in the given direction before another
         transform.
     """
-    
     base_operation_types = cfg.BASE_ACT_TYPES if search_direction == DependencyDirection.FORWARD \
         else cfg.BASE_NORM_TYPES
 
@@ -54,6 +57,12 @@ def find_adjacent_op_nodes(cfg: ConfigProtocol, source_node: Node, \
             operation_nodes.add(branch_node)
         if is_transform_type(cfg, branch_node_module_type):
             continue
+        # This is becoming more and more necessary - better write an abstraction
+        if isinstance(branch_node.module, _ElementWiseOp):
+            node_grad_fn_type = type(branch_node.grad_fn)
+            grad_fn_name = node_grad_fn_type.__name__
+            if grad_fn_name in ['AddBackward0', 'MulBackward0']:
+                continue
         
         operation_nodes.union(
             find_adjacent_op_nodes(cfg, branch_node, search_direction, operation_nodes)
@@ -62,7 +71,7 @@ def find_adjacent_op_nodes(cfg: ConfigProtocol, source_node: Node, \
     return operation_nodes
 
 def is_op_prunable(cfg: ConfigProtocol, op_node: Node, \
-    search_direction: DependencyDirection, allowed_transform_nodes: set[Node] = None) -> bool:
+    search_direction: DependencyDirection, expected_dependent_nodes: set[Node] = None) -> bool:
     """Searches from an operation node, back in the direction of its root transform, to see if
     there are any transforms other than the root that use it. If there is only one path back to a
     transform, it is only the root, and we can prune the operation together with it. 
@@ -79,23 +88,26 @@ def is_op_prunable(cfg: ConfigProtocol, op_node: Node, \
 
     def get_dependent_transforms(node: Node, direction: DependencyDirection) -> set:
         dep_transforms = set()
-        if is_transform_type(cfg, type(node.module)):
+        if isinstance(node.module, _ElementWiseOp):
+            node_grad_fn_type = type(node.grad_fn)
+            grad_fn_name = node_grad_fn_type.__name__
+            if grad_fn_name in ['AddBackward0', 'MulBackward0']:
+                return dep_transforms
+            
+        if is_transform_type(cfg, type(node.module)) and not is_identity_module(node.module):
             dep_transforms.add(node)
             return dep_transforms
 
         branches = get_adjacent_nodes(node, direction)
         for branch_node in branches:
             dep_transforms = dep_transforms | get_dependent_transforms(branch_node, direction)
-            if len(dep_transforms) >= 2 and (not allowed_transform_nodes):
+            if len(dep_transforms) > len(expected_dependent_nodes):
                 break
         
         return dep_transforms
     
     dep_transforms = get_dependent_transforms(op_node, search_direction)
-    if allowed_transform_nodes:
-        return dep_transforms == allowed_transform_nodes
-    else:
-        return len(dep_transforms) <= 1
+    return dep_transforms == expected_dependent_nodes
 
 def find_nearest_nonid_module_node(source_node: Node, modules: set, \
     search_direction: DependencyDirection) -> Node:
@@ -115,17 +127,17 @@ def find_nearest_nonid_module_node(source_node: Node, modules: set, \
     def recursive_case(node: Node):
         branches = get_adjacent_nodes(node, search_direction)
         for branch in branches:
-            if branch.module in modules and not isinstance(branch.module, Identity):
+            if branch.module in modules and not is_identity_module(branch.module):
                 return branch
             else:
                 return recursive_case(branch)
             
-    if source_node.module in modules and not isinstance(source_node.module, Identity):
+    if source_node.module in modules and not is_identity_module(source_node.module):
         return source_node
     else:
         return recursive_case(source_node)
 
-def get_op_subtree(cfg: ConfigProtocol, root_node: Node, allowed_transform_nodes: set[Node] = None)\
+def get_op_subtree(cfg: ConfigProtocol, root_node: Node, expected_dependent_nodes: set[Node] = None)\
     -> Set[Node]:
     """Finds all operation nodes that might be coupled to the module represented by the root node, 
     and returns those that are depended on by only the root node.
@@ -151,12 +163,15 @@ def get_op_subtree(cfg: ConfigProtocol, root_node: Node, allowed_transform_nodes
         operation_nodes=set()
     )
 
+    if not expected_dependent_nodes:
+        expected_dependent_nodes = set([root_node])
+
     for node in act_nodes:
-        if is_op_prunable(cfg, node, DependencyDirection.BACKWARD, allowed_transform_nodes):
+        if is_op_prunable(cfg, node, DependencyDirection.BACKWARD, expected_dependent_nodes):
             op_subtree.add(node)
 
     for node in norm_nodes:
-        if is_op_prunable(cfg, node, DependencyDirection.FORWARD, allowed_transform_nodes):
+        if is_op_prunable(cfg, node, DependencyDirection.FORWARD, expected_dependent_nodes):
             op_subtree.add(node)
 
     return op_subtree
