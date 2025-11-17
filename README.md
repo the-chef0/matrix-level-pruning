@@ -36,8 +36,7 @@ See `config/config_protocol.py` for a definition of the configuration protocol a
 | `MODEL`                        | Can be `None` if `TARGET_SPARSITY = 0`                                           | The model to prune. Most PyTorch `nn.Module` objects should be supported, including subclasses like the HuggingFace `AutoModelForCausalLM`.                                         |
 | `TOKENIZER`                    | Only if `EVALUATE` is set to `True`, otherwise can be `None`           | The tokenizer for the model.                                                                                                                                                        |
 | `DUMMY_INPUT`                  | Yes                                           | Any valid input into the model for tracing the computation graph (see [Why the DepGraph dependency?](#why-the-depgraph-dependency)).                                                                                                                   |
-| `IMPORTANCES_SAVE_PATH`        | Can be `None`                                            | A path of the format `/path/to/file.csv` where to save the importance ranking of each identified pruning tree (see [What it does](#what-it-does)).                                                                      |
-| `TARGET_SPARSITY`           | Yes; set to 0 to skip pruning to evaluate a saved model                                           | A real number between 0 and 1 guiding how many times to repeat the pruning tree collection pass before the target sparsity is reached or exceeded (see [Putting it all together](#putting-it-all-together)).                                                                                     |
+| `IMPORTANCES_SAVE_PATH`        | Can be `None`                                            | A path of the format `/path/to/file.csv` where to save the importance ranking of each identified pruning tree (see [What it does](#what-it-does)).                                                                      |                                                                                     |
 | `PRUNED_MODEL_SAVE_DIR`        | Yes                                            | The location to save the pruned model to. If given as `/path/to/model`, the model will be saved under `/path/to/model/model.pth`.                                                   |
 | `EVALUATE`                     | Can be `None`                                            | Whether to evaluate the pruned model (TODO: evaluation config).                                                                                                                     |
 | `EVAL_RESULTS_PATH`            | Yes                                            | A path of the format `/path/to/file.csv' where to save the results of the evaluation.                                                                                               |
@@ -75,8 +74,6 @@ The code uses two simultaneous representations of the model and switches between
 
 At the time of writing this, state-of-the-art LLM pruning works by removing (depth-pruning) transformer/attention/MLP layers that are deemed unimportant by some metric. This leads to a reduction in memory footprint, but importantly, it also leads to reduced inference latency which is crucial for deployment at scale. Compared to structured and unstructured pruning which saves on latency by reducing memory accesses, this SOTA depth pruning of entire transformer/attention/MLP layers saves on latency by skipping these computations entirely. However, taking these large composite blocks to be the pruning units yields a relatively small search space. My work expands this search space by zooming in on the finest level on which this idea of "skipping computations entirely" applies.
 
-The main functionality consists of several iterations of the *pruning tree collection* pass and one *identity patching pass*
-
 ### The pruning tree data structure
 
 A pruning tree consists of a *parameter subtree* and an *operation subtree*. The root of each tree is either a *transform layer* - meaning linear layer or convolution layer (see [`BASE_TRANSFORM_TYPES`](#configuration)) - or an attention head (see [`BASE_ATTENTION_TYPES`](#configuration)). The root is the primary object to prune to avoid the latency associated with computing it, and the rest of the tree consists of objects that need to removed along with it.
@@ -89,7 +86,7 @@ For example, if a linear layer $l$ has input dimension 2048 and output dimension
 
 However, if the linear layer has e.g. input dimension 2048 and output dimension 4096, this no longer works. The layer $l+1$ that comes after the root expects an input of size 4096, but by removing the root, the input passes directly through and retains its size of 2048. To fix this, we *width-prune* this dependency, i.e. remove columns from the parameter matrix (corresponding to input dimensions) of $l+1$. By width-pruning 2048 columns, $l+1$ becomes able to accept an input of size 2048. **Overall, the parameter subtree consists of the root $l$, and as a dimensional dependency, the 2048 least important columns in the parameter matrix of $l+1$.** The case of a linear layer that reduces dimensions rather than expands is analogous.
 
-Lastly, the operation subtree consists of any activation functions, normalization functions and other such operations that are coupled to the root. "Coupled to the root" means they only receive an input from the root. 
+Lastly, the operation subtree consists of any activation functions, normalization functions and other such operations that are coupled to the root. "Coupled to the root" means they receive an input/output only from the root. 
 
 Everything collected in the tree is considered for removal. The parameter subtree contains the root, which is the primary unit of computation we want to get rid of (and also save on memory by removing its parameters), along with dependent rows/columns in adjacent parameter matrices. The operation subtree consists of functions that we no longer need once the root is removed, so we can remove them too for a small, additional latency boost.
 
@@ -126,18 +123,6 @@ Since the element-wise arithmetic operation in question is a multiplication, the
 \textsf{id}(\textsf{id}(\mathbf{X})) * \mathbf{1} = \mathbf{X}
 ```
 When compiling the model for inference, the compiler will likely detect these redundant identity operations and the redundant multiplication and optimize them away.
-
-### Putting it all together
-
-With both passes described in detail, we can look at an overview of the top-level functionality:
-
-1. Do a pruning tree collection pass - obtain one tree per transform layer and attention head as a root.
-2. Measure the total importance of each tree.
-3. Prune out the least important tree.
-4. If the target parameter count reduction has not yet been reached, go to 1. Otherwise go to 5.
-5. Do an identity patching pass.
-
-The model will then be ready for fine-tuning, compilation for inference, and other downstream tasks.
 
 ### Why the DepGraph dependency?
 Much of the code is built on top of the [Torch-Pruning repo](https://github.com/VainF/Torch-Pruning/), which implements the DepGraph data structure. Torch-Pruning is a structured, width pruning implementation, and the DepGraph data structure is used to answer the following question: "If I adjust the input/output dimension of a layer by width-pruning its parameter matrix, what dimension-dependent parameters in other layers do I also have to prune?"
