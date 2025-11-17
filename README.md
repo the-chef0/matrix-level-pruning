@@ -1,4 +1,4 @@
-# Computation Graph Pruning: A General Method Applied to Language Models
+# Automatic Depth Pruning and Post-Processing for Efficient Deep Learning
 
 ## Usage guide
 
