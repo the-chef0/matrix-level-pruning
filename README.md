@@ -13,7 +13,7 @@ In the corresponding file (see table below), select a point from the `FIGURE_POI
 
 **To reproduce the YOLOv5 results:** 
 1. Clone the [YOLOv5 repository](https://github.com/ultralytics/yolov5) and change the `sys.path.append()` line in the YOLO files in the `config` directory to point to the directory of the cloned repo.
-2. In the corresponding file, 
+2. In the corresponding file, (see table below), select a point from the `FIGURE_POINTS` dictionary to use in the loop header.
 
 **Then:** Run the corresponding file select a point from the `FIGURE_POINTS` dictionary to use in the loop header.
 
