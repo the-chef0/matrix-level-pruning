@@ -25,17 +25,17 @@ def evaluate_pruned(cfg: ConfigProtocol, model_utils: ModelUtils):
         pretrained=model,
         tokenizer=tokenizer,
         device=cfg.DEVICE,
+        device=cfg.DEVICE,
         batch_size='auto'
     )
 
     results = lm_eval.simple_evaluate( # call simple_evaluate
         model=llm,
         model_args=name,
-        tasks=["hellaswag", "piqa", "wsc273", "coqa", "race", "mmlu", "cmmlu", "boolq"], # missing CMNLI, CHID, XSum, C3
+        tasks=["mmlu", "piqa", "boolq"],
         device=cfg.DEVICE,
     )
 
-    print(results)
-
     with open(cfg.EVAL_RESULTS_PATH, "w") as f:
+        print(f'Saving to {cfg.EVAL_RESULTS_PATH}')
         json.dump(results['results'], f)
