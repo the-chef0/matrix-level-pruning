@@ -1,27 +1,34 @@
 # Automatic Depth Pruning and Post-Processing for Efficient Deep Learning
 
-## Usage guide
+There are two sections in this README. One explains how to reproduce the results in the thesis, showing an applied example of this codebase. The other explains the structure of the codebase and how it works overall.
 
+## Reproduction
+
+**First:**
 1. Clone this repo
 2. Install dependencies using `pip install -r requirements.txt`
-3. Configure settings in `config/config.py` (see [below](#configuration) for more info)
-4. Run `python entrypoint.py`
 
-To understand how the code is structured, see [Package structure](#package-structure). To understand how that translates to a higher, conceptual level, see [What it does](#what-it-does).
+**To reproduce the Llama2 results:**
+In the corresponding file (see table below), select a point from the `FIGURE_POINTS` dictionary to use in the loop header.
 
-### Examples
+**To reproduce the YOLOv5 results:** 
+1. Clone the [YOLOv5 repository](https://github.com/ultralytics/yolov5) and change the `sys.path.append()` line in the YOLO files in the `config` directory to point to the directory of the cloned repo.
+2. In the corresponding file, 
 
-To see an example, run `python [example_filename].py`.
+**Then:** Run the corresponding file select a point from the `FIGURE_POINTS` dictionary to use in the loop header.
 
 | File                   | Description                                                                                                                                                         |
 |------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `example_llama_mlp.py` | Demonstrates pruning Llama3 1B in hand-picked way that also create a redundant multiplication situation to demonstrate artithmetic identity patching.               |
-| `example_mobilenet.py` |Pruning MobileNetV2 to 20% sparsity to demonstrate applicability to general PyTorch models, not just HuggingFace LMs.                                  |
-| `example_concat.py`    | Demonstrates pruning an invented example model in a hand-picked way that also create a redundant concatenation situation to demonstrate concatenative identity patching. |
+| `reprod_llama_7b_coarse.py` | Reproduction of our replication of the baseline, Transformer layer pruning method on Llama2 7B.               |
+| `reprod_llama_13b_coarse.py` | Reproduction of our replication of the baseline, Transformer layer pruning method on Llama2 13B.               |
+| `reprod_llama_7b_fine.py` | Reproduction of our fine-grained depth pruning results on Llama2 7B.                                   |
+| `reprod_llama_13b_fine.py`    | Reproduction of our fine-grained depth pruning results on Llama2 13B. |
+
+## Package structure
 
 ### Configuration
 
-See `config/config_protocol.py` for a definition of the configuration protocol and `config/config.py` for a concrete example.
+See `config/config_protocol.py` for a definition of the configuration protocol and see the `config/` directory for concrete examples.
 
 | Field                          | Required                                      | Description                                                                                                                                                                         |
 |--------------------------------|-----------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -48,8 +55,6 @@ You will most likely need to specify the following arguments:
  - `customized_pruners`: This is used to specify which module types should be considered nodes in the DepGraph data structure. They get detected via these pruner classes. By default, it ignores activation and normalization modules. See the Torch-Pruning repo to see what it does detect by default. For unparametrized operations like ReLU, you can use the placeholder `OperationPruner` from `infra/utils/dep_graph_utils/custom_pruners.py`. The file also contains other pruners that I used during development, maybe some will be useful to you. If not, you might need to define your own.
 
 For more info, please see the [Torch-Pruning repo](https://github.com/VainF/Torch-Pruning/). To understand why this is required, see [Why the DepGraph Dependency?](#why-the-depgraph-dependency).
-
-## Package structure
 
 The code uses two simultaneous representations of the model and switches between them for different purposes. The table below describes how the code is organized to reflect this.
 
@@ -89,6 +94,8 @@ Lastly, the operation subtree consists of any activation functions, normalizatio
 Everything collected in the tree is considered for removal. The parameter subtree contains the root, which is the primary unit of computation we want to get rid of (and also save on memory by removing its parameters), along with dependent rows/columns in adjacent parameter matrices. The operation subtree consists of functions that we no longer need once the root is removed, so we can remove them too for a small, additional latency boost.
 
 #### Attention heads
+
+**Note:** This codebase supports pruning attention heads, but in the final thesis, this feature was not used. Instead, we pruned full attention layers by pruning all the heads within them. This is done in the reproduction files too.
 
 For a tree rooted at an attention head $i$, the parameter subtree consists of rows in the Q, K and V projection matrices, and columns in the O projection matrix, that correspond to attention head $i$. There is no need for dimensional dependencies in the subtree, because contrary to what I was able to find in the literature, it is possible to prune attention heads without breaking dimensions in other parts of the model.
 
@@ -138,19 +145,3 @@ Much of the code is built on top of the [Torch-Pruning repo](https://github.com/
 In my implementation, pruning the root of a transform pruning tree is implemented as replacing it with an identity function, which is equivalent on a dimensional level to changing the layer's output dimension to be equal to its input dimension. The DepGraph helps identify the affected, dimension-dependent layers.
 
 Additionally, Torch-Pruning creates this DepGraph data structure by traversing the PyTorch Autograd graph. This provided a convenient computation graph representation of the model that I used to identify operations that belong in pruning trees, identify redundant arithmetic operations and so on.
-
-# TODO
- - [x] Fix attention head grouping algo
- - [x] Make naming in attention_pruning_tree consistent with transform_pruning_tree
- - [x] Clean up identity_patcher, see if any dep_graph_search_utils functions can be repurposed
- - [x] Use config object in eval
- - [x] Improve defaults in provided config file
- - [x] Write a usage guide
- - [x] Finish docstrings
- - [x] Make sure type hints are everywhere
- - [x] Update examples
- - [x] Make sure everything in dep_graph_search_utils takes args on the dep graph level and returns types on the dep graph level
- - [x] Parametrize device in config
- - [x] Make a pruning listener that rebuilds data structures in model_utils every time something is pruned
- - [ ] (Low priority) There should be a way to make general DFS functions like `find_first_node_by_cond`, `collect_nodes_by_cond` and `count_nodes_by_cond` and pass the conditions as lambdas, but the work needed to make this kind of abstraction might not be worth it at all.
- - [ ] (Low priority) Maybe there is some stuff that repeats in both transform_pruning_tree and attention_pruning_tree that I could take care of in the pruning_tree superclass. Look into class methods, static methods, etc. Could also do a template method prune in the superclass that calls do_prune (concrete implementation) followed by call_post_prune_listeners.
