@@ -19,7 +19,7 @@ class Config(ConfigProtocol):
     IMPORTANCES_SAVE_PATH = None
     IMPORTANCES_SAVE_PATH = None
     TARGET_SPARSITY = 0.1
-    PRUNED_MODEL_SAVE_DIR = None
+    PRUNED_MODEL_SAVE_DIR = './pruned'
     EVALUATE = True
     EVAL_RESULTS_PATH = None
     DEP_GRAPH_ARGS = {

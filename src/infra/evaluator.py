@@ -25,7 +25,6 @@ def evaluate_pruned(cfg: ConfigProtocol, model_utils: ModelUtils):
         pretrained=model,
         tokenizer=tokenizer,
         device=cfg.DEVICE,
-        device=cfg.DEVICE,
         batch_size='auto'
     )
 

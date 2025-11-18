@@ -98,7 +98,7 @@ class AttentionPruningTree(PruningTree):
 
             qkv_side_subtree = get_op_subtree(
                 cfg, q_proj_node,
-                allowed_transform_nodes=set([q_proj_node, k_proj_node, v_proj_node])
+                expected_dependent_nodes=set([q_proj_node, k_proj_node, v_proj_node])
             )
             o_side_subtree = get_op_subtree(cfg, o_proj_node)
 
