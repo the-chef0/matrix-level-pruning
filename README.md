@@ -9,18 +9,17 @@ There are two sections in this README. One explains how to reproduce the results
 2. Install dependencies using `pip install -r requirements.txt`
 
 **To reproduce the Llama2 results:**
-In the corresponding file (see table below), select a point from the `FIGURE_POINTS` dictionary to use in the loop header.
+In the corresponding reproduction script (see table below), select a point from the `FIGURE_POINTS` dictionary to use in the loop header.
 
 **To reproduce the YOLOv5 results:** 
 1. Clone the [YOLOv5 repository](https://github.com/ultralytics/yolov5) and change the `sys.path.append()` line in the YOLO files in the `config` directory to point to the directory of the cloned repo.
 2. Follow instructions in the [YOLOv5 repository](https://github.com/ultralytics/yolov5) to download the COCO128 dataset and modify `infra/utils/model_utils_yolo.py` to point it to the relevant YAML file.
-3. In the corresponding file, (see table below), select a point from the `FIGURE_POINTS` dictionary to use in the loop header.
 
 The YOLOv5 reproduction scripts only prune the model. To get the evaluation results, modify the val script in your cloned copy of the YOLOv5 repository by replacing the model loading code with `torch.load()` to load the file created by the reproduction script.
 
 **Then:** 
 1. If needed, update the device (`cuda` or `cpu`) in the corresponding config file.
-2. In the corresponding reproduction script, select a point from the `FIGURE_POINTS` dictionary to use in the loop header.
+2. In the corresponding reproduction script (see table below), select a point from the `FIGURE_POINTS` dictionary to use in the loop header.
 
 | File                   | Description                                                                                                                                                         |
 |------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
