@@ -16,7 +16,7 @@ class Config(ConfigProtocol):
     DUMMY_INPUT = MODEL.dummy_inputs['input_ids']
     IMPORTANCES_SAVE_PATH = None
     TARGET_SPARSITIES = []
-    PRUNED_MODEL_SAVE_DIR = None
+    PRUNED_MODEL_SAVE_DIR = './pruned'
     EVALUATE = True
     EVAL_RESULTS_PATH = './llama-13b-pruned.json'
     DEP_GRAPH_ARGS = {

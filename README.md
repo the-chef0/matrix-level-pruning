@@ -13,9 +13,14 @@ In the corresponding file (see table below), select a point from the `FIGURE_POI
 
 **To reproduce the YOLOv5 results:** 
 1. Clone the [YOLOv5 repository](https://github.com/ultralytics/yolov5) and change the `sys.path.append()` line in the YOLO files in the `config` directory to point to the directory of the cloned repo.
-2. In the corresponding file, (see table below), select a point from the `FIGURE_POINTS` dictionary to use in the loop header.
+2. Follow instructions in the [YOLOv5 repository](https://github.com/ultralytics/yolov5) to download the COCO128 dataset and modify `infra/utils/model_utils_yolo.py` to point it to the relevant YAML file.
+3. In the corresponding file, (see table below), select a point from the `FIGURE_POINTS` dictionary to use in the loop header.
 
-**Then:** Run the corresponding file select a point from the `FIGURE_POINTS` dictionary to use in the loop header.
+The YOLOv5 reproduction scripts only prune the model. To get the evaluation results, modify the val script in your cloned copy of the YOLOv5 repository by replacing the model loading code with `torch.load()` to load the file created by the reproduction script.
+
+**Then:** 
+1. If needed, update the device (`cuda` or `cpu`) in the corresponding config file.
+2. In the corresponding reproduction script, select a point from the `FIGURE_POINTS` dictionary to use in the loop header.
 
 | File                   | Description                                                                                                                                                         |
 |------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -23,6 +28,9 @@ In the corresponding file (see table below), select a point from the `FIGURE_POI
 | `reprod_llama_13b_coarse.py` | Reproduction of our replication of the baseline, Transformer layer pruning method on Llama2 13B.               |
 | `reprod_llama_7b_fine.py` | Reproduction of our fine-grained depth pruning results on Llama2 7B.                                   |
 | `reprod_llama_13b_fine.py`    | Reproduction of our fine-grained depth pruning results on Llama2 13B. |
+| `reprod_yolov5x.py`    | Reproduction of our fine-grained depth pruning results on YOLOv5X. |
+| `reprod_yolov5l.py`    | Reproduction of our fine-grained depth pruning results on YOLOv5L. |
+| `reprod_yolov5m.py`    | Reproduction of our fine-grained depth pruning results on YOLOv5M. |
 
 ## Package structure
 
